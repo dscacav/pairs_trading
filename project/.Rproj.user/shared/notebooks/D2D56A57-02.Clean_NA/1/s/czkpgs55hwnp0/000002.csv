@@ -1,0 +1,4 @@
+"0","# * geom_miss_point() ----"
+"0","air_quality_tbl %>%"
+"0","    ggplot(aes(x = Solar.R, y = Ozone)) +"
+"0","    geom_miss_point()"

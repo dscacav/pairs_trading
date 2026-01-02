@@ -1,0 +1,495 @@
+
+
+```{r, message=FALSE}
+library(tidyverse)
+library(tseries)
+library(quantmod)
+library(esquisse)
+library('PerformanceAnalytics')
+library(lubridate)
+```
+
+```{r}
+load('adjus_f.RData')
+load('ls_eda_all.RData')
+load('BVSP.RData')
+```
+
+# analisando os pares de forma individual
+```{r}
+comb_pair <- 'EVEN3_OMGE3'
+
+nomea <- str_split(comb_pair, "_", simplify = TRUE)[1]
+nomeb <- str_split(comb_pair, "_", simplify = TRUE)[2]
+
+a <- adjus_f[,nomea]
+b <- adjus_f[,nomeb]
+c <- dailyReturn(a); names(c) <- nomea
+d <- dailyReturn(b); names(d) <- nomeb
+
+# Retornos no tempo
+chart.CumReturns(cbind(c, d), grid.color = "white",
+                 main=paste("Retorno Acumulado", nomea, '-', nomeb),legend.loc='bottomright')
+
+# Preços no tempo
+chart.TimeSeries(cbind(a, b), grid.color = "white",
+                 main=paste("Gráficos Preços", nomea, '-', nomeb),legend.loc='bottomright')
+
+# Regressão Linear
+ggplot(as_tibble(cbind(a, b)) %>% drop_na()) +
+ aes(a, b) +
+ geom_point(size = 1L, colour = "#0c4c8a") +
+ labs(x = names(a), y = names(b), title = "Scatter Plot", subtitle = paste("Regressão Linear", nomea, '~',  nomeb)) +
+ stat_smooth(method = "lm", col = "red")+
+ theme_classic()
+
+# Resíduos Padronizados
+x <- scale(xts(residuals(lm(a~b)),order.by=as.Date(index(a))))
+up2 <- xts(rep(2,length(x)),order.by=as.Date(index(x)))
+dw2 <- xts(rep(-2,length(x)),order.by=as.Date(index(x)))
+chart.TimeSeries(cbind(x, dw2, up2), grid.color = "white", element.color = "blue",
+                 main=  paste("Resíduos Normalizados", nomea, '~',  nomeb))
+
+# Retornos Total
+rt1 <- ls_eda_t1 %>% filter(left_side == names(a), right_side == names(b)) %>% select(day, sum_ret_t1)
+rt1 <- xts(rt1$sum_ret_t1, order.by=rt1$day)
+
+rt2 <- ls_eda_t2 %>% filter(left_side == names(a), right_side == names(b)) %>% select(day, sum_ret_t2)
+rt2 <- xts(rt2$sum_ret_t2, order.by=rt2$day)
+
+rt3 <- ls_eda_t3 %>% filter(left_side == names(a), right_side == names(b)) %>% select(day, sum_ret_t3)
+rt3 <- xts(rt3$sum_ret_t3, order.by=rt3$day)
+
+rt_t <- cbind(rt1, rt2, rt3)
+rt_t[is.na(rt_t)] <- 0
+rt_t$rtt <- rowSums(rt_t)
+
+comb_rt <- cbind(c, d, rt_t)
+comb_rt[is.na(comb_rt)] <- 0
+charts.PerformanceSummary(comb_rt, main="Retornos")
+
+# Retornos Stop in 20%
+rt1 <- ls_eda_t1 %>% filter(left_side == names(a), right_side == names(b)) %>% select(day, stop_ret_t1)
+rt1 <- xts(rt1$stop_ret_t1, order.by=rt1$day)
+
+rt2 <- ls_eda_t2 %>% filter(left_side == names(a), right_side == names(b)) %>% select(day, stop_ret_t2)
+rt2 <- xts(rt2$stop_ret_t2, order.by=rt2$day)
+
+rt3 <- ls_eda_t3 %>% filter(left_side == names(a), right_side == names(b)) %>% select(day, stop_ret_t3)
+rt3 <- xts(rt3$stop_ret_t3, order.by=rt3$day)
+
+rt_t <- cbind(rt1, rt2, rt3)
+rt_t[is.na(rt_t)] <- 0
+rt_t$rtt <- rowSums(rt_t)
+
+comb_rt <- cbind(c, d, rt_t)
+comb_rt[is.na(comb_rt)] <- 0
+charts.PerformanceSummary(comb_rt, main="Retornos")
+
+```
+
+# Criando a classe de dias em aberto
+```{r}
+
+ls_eda_t1$class_days_t1 <- with(ls_eda_t1, ifelse(open_days_t1 <=5, "01_05",
+                       ifelse(open_days_t1 <=10, "06_10",
+                              ifelse(open_days_t1 <=15, "11_15",
+                                     ifelse(open_days_t1 <=20, "16_20",
+                                            ifelse(open_days_t1 <=25, "21_25",
+                                                   ifelse(open_days_t1 <=30, "26_30",
+                                                          ifelse(open_days_t1 <=35, "31_35",
+                                                                 ifelse(open_days_t1 <=40, "36_40", "41_acima")))))))))
+
+ls_eda_t2$class_days_t2 <- with(ls_eda_t2, ifelse(open_days_t2 <=5, "01_05",
+                       ifelse(open_days_t2 <=10, "06_10",
+                              ifelse(open_days_t2 <=15, "11_15",
+                                     ifelse(open_days_t2 <=20, "16_20",
+                                            ifelse(open_days_t2 <=25, "21_25",
+                                                   ifelse(open_days_t2 <=30, "26_30",
+                                                          ifelse(open_days_t2 <=35, "31_35",
+                                                                 ifelse(open_days_t2 <=40, "36_40", "41_acima")))))))))
+
+ls_eda_t3$class_days_t3 <- with(ls_eda_t3, ifelse(open_days_t3 <=5, "01_05",
+                       ifelse(open_days_t3 <=10, "06_10",
+                              ifelse(open_days_t3 <=15, "11_15",
+                                     ifelse(open_days_t3 <=20, "16_20",
+                                            ifelse(open_days_t3 <=25, "21_25",
+                                                   ifelse(open_days_t3 <=30, "26_30",
+                                                          ifelse(open_days_t3 <=35, "31_35",
+                                                                 ifelse(open_days_t3 <=40, "36_40", "41_acima")))))))))
+
+
+
+```
+
+
+# abt por dia
+```{r}
+ls_abt_day <- ls_eda_all %>% select(-4:-5) %>%
+  unite(pair, c(left_side, right_side)) %>% 
+  group_by(day, pair, euclidian, ratio, econ_rel, MCap_Classe, Setor, Subsetor, Segmento, Diffs) %>%
+  summarise(sum_rt_t1 = sum(sum_ret_t1, na.rm = TRUE),
+            sum_rt_t2 = sum(sum_ret_t2, na.rm = TRUE),
+            sum_rt_t3 = sum(sum_ret_t3, na.rm = TRUE),
+            sum_ret = sum(sum_ret, na.rm = TRUE),
+            stop_ret_t1 = sum(stop_ret_t1, na.rm = TRUE),
+            stop_ret_t2 = sum(stop_ret_t2, na.rm = TRUE),
+            stop_ret_t3 = sum(stop_ret_t3, na.rm = TRUE),
+            sum_ret_stop = sum(sum_ret_stop, na.rm = TRUE))
+
+
+# pivot longer
+ls_abt_day_longer <- ls_abt_day %>%
+  pivot_longer(cols = 11:18,
+               names_to = "period",
+               values_to = "return",
+               values_drop_na = TRUE) %>%
+  mutate(econ_rel = as.character(econ_rel),
+         Diffs = as.character(Diffs))
+
+
+ls_abt_day_longer_rt <- ls_abt_day_longer %>% filter(period %in% c('sum_rt_t1', 'sum_rt_t2', 'sum_rt_t3'))
+
+ls_abt_day_longer_sp <- ls_abt_day_longer %>% filter(period %in% c('stop_ret_t1', 'stop_ret_t2', 'stop_ret_t3'))
+
+```
+
+
+```{r}
+
+ggplot(ls_abt_day_longer_rt) +
+ aes(x = day, fill = period, weight = return) +
+ geom_bar() +
+ scale_fill_hue() +
+ theme_minimal()
+
+```
+
+```{r}
+
+z_analise <- 
+  ls_abt_day %>%ungroup() %>% select(day, sum_rt_t1, sum_rt_t2, sum_rt_t3, sum_ret) %>%
+  group_by(day) %>% 
+  summarise(sum_rt_t1 = sum(sum_rt_t1), sum_rt_t2 = sum(sum_rt_t2),
+            sum_rt_t3 = sum(sum_rt_t3), sum_ret = sum(sum_ret)) %>% ungroup() %>% 
+  mutate(sum_rt_t1 = cumsum(sum_rt_t1), sum_rt_t2 = cumsum(sum_rt_t2),
+            sum_rt_t3 = cumsum(sum_rt_t3), sum_ret = cumsum(sum_ret))
+
+z_analise <- z_analise %>%
+  pivot_longer(cols = 2:5,
+               names_to = "period",
+               values_to = "return",
+               values_drop_na = TRUE)
+
+ggplot(z_analise) +
+ aes(x = day, y = return, colour = period) +
+ geom_line(size = 1L) +
+ scale_color_hue() +
+ labs(x = "Data", y = "Retorno Acumulado", title = "Retorno Acumulado dos 3 tempos", subtitle = "Incluindo a somatória") +
+ theme_classic()
+
+```
+
+
+```{r}
+z_analise <- ls_eda_t1 %>% group_by(class_days_t1) %>%
+  summarise (count_t1 = n(), return_t1= sum(sum_ret_t1), avg_t1 = return_t1 / count_t1)
+
+z_analise <- left_join(z_analise, ls_eda_t2 %>% group_by(class_days_t2) %>%
+                         summarise (count_t2 = n(), return_t2= sum(sum_ret_t2), avg_t2 = return_t2 / count_t2),
+                       by = c("class_days_t1" = "class_days_t2"))
+
+z_analise <- left_join(z_analise, ls_eda_t3 %>% group_by(class_days_t3) %>%
+                         summarise (count_t3 = n(), return_t3= sum(sum_ret_t3), avg_t3 = return_t3 / count_t3),
+                       by = c("class_days_t1" = "class_days_t3"))
+
+z_analise <- z_analise %>% rename(class_days = class_days_t1) 
+z_analise
+```
+
+
+```{r}
+z1_analise <- z_analise %>% select(1, 3, 6, 9) %>% 
+  pivot_longer(cols = c(2:4),
+               names_to = "periodo",
+               values_to = "retorno",
+               values_drop_na = TRUE)
+
+ggplot(z1_analise) +
+ aes(x = class_days, fill = periodo, weight = retorno) +
+ geom_bar(position="dodge") +
+ scale_fill_hue() +
+ theme_classic() +
+ labs(x = "Classe dos Dias", y = "Retorno Total", title = "Retorno Total", subtitle = "Análise do retorno em relação as classes de dias") 
+
+rm(z1_analise)
+```
+
+
+```{r}
+z1_analise <- z_analise %>% select(1, 4, 7, 10) %>% 
+  pivot_longer(cols = c(2:4),
+               names_to = "periodo",
+               values_to = "retorno",
+               values_drop_na = TRUE)
+
+ggplot(z1_analise) +
+ aes(x = class_days, fill = periodo, weight = retorno) +
+ geom_bar(position="dodge") +
+ scale_fill_hue() +
+ theme_classic() +
+ labs(x = "Classe dos Dias", y = "Retorno Médio", title = "Retorno Médio", subtitle = "Análise do retorno médio em relação as classes de dias") 
+
+rm(z1_analise)
+```
+
+
+```{r}
+ggplot(ls_abt_day_longer_sp) +
+ aes(x = day, fill = period, weight = return) +
+ geom_bar() +
+ scale_fill_hue() +
+ theme_minimal()
+```
+
+
+```{r}
+
+z_analise <- 
+  ls_abt_day %>%ungroup() %>% select(day, stop_ret_t1, stop_ret_t2, stop_ret_t3, sum_ret_stop) %>%
+  group_by(day) %>% 
+  summarise(stop_ret_t1 = sum(stop_ret_t1), stop_ret_t2 = sum(stop_ret_t2),
+            stop_ret_t3 = sum(stop_ret_t3), sum_ret_stop = sum(sum_ret_stop)) %>% ungroup() %>% 
+  mutate(stop_ret_t1 = cumsum(stop_ret_t1), stop_ret_t2 = cumsum(stop_ret_t2),
+            stop_ret_t3 = cumsum(stop_ret_t3), sum_ret_stop = cumsum(sum_ret_stop))
+
+
+z_analise <- z_analise %>%
+  pivot_longer(cols = 2:5,
+               names_to = "period",
+               values_to = "return",
+               values_drop_na = TRUE)
+  
+
+ggplot(z_analise) +
+ aes(x = day, y = return, colour = period) +
+ geom_line(size = 1L) +
+ scale_color_hue() +
+ labs(x = "Data", y = "Retorno Acumulado", title = "Retorno Acumulado dos 3 tempos", subtitle = "Incluindo a somatória") +
+ theme_classic()
+
+
+```
+
+
+```{r}
+ls_eda_t1 %>% group_by(class_days_t1) %>% summarise (count = n(), return= sum(sum_ret_t1), stop_return= sum(stop_ret_t1))
+
+ls_eda_t2 %>% group_by(class_days_t2) %>% summarise (count = n(), return= sum(sum_ret_t2), stop_return= sum(stop_ret_t2))
+
+ls_eda_t3 %>% group_by(class_days_t3) %>% summarise (count = n(), return= sum(sum_ret_t3), stop_return= sum(stop_ret_t3))
+
+z_analise <- ls_eda_t1 %>% group_by(class_days_t1) %>%
+  summarise (return_t1= sum(sum_ret_t1), stop_return1= sum(stop_ret_t1))
+
+z_analise <- left_join(z_analise, ls_eda_t2 %>% group_by(class_days_t2) %>%
+                         summarise (return_t2= sum(sum_ret_t2), stop_return2= sum(stop_ret_t2)),
+                       by = c("class_days_t1" = "class_days_t2"))
+
+z_analise <- left_join(z_analise, ls_eda_t3 %>% group_by(class_days_t3) %>%
+                         summarise (return_t3= sum(sum_ret_t3), stop_return3= sum(stop_ret_t3)),
+                       by = c("class_days_t1" = "class_days_t3"))
+
+z_analise <- z_analise %>% rename(class_days = class_days_t1) 
+z_analise
+
+```
+
+
+
+```{r}
+
+z_analise <- ls_abt_day %>% group_by(year = year(day), month = month(day)) %>%
+   summarise(sum_rt_t1 = sum(sum_rt_t1, na.rm = TRUE),
+            sum_rt_t2 = sum(sum_rt_t2, na.rm = TRUE),
+            sum_rt_t3 = sum(sum_rt_t3, na.rm = TRUE),
+            sum_ret = sum(sum_ret, na.rm = TRUE),
+            stop_ret_t1 = sum(stop_ret_t1, na.rm = TRUE),
+            stop_ret_t2 = sum(stop_ret_t2, na.rm = TRUE),
+            stop_ret_t3 = sum(stop_ret_t3, na.rm = TRUE),
+            sum_ret_stop = sum(sum_ret_stop, na.rm = TRUE)) %>% ungroup() %>% 
+  unite(data, c("year", "month")) %>% 
+  pivot_longer(cols = 2:9,
+               names_to = "period",
+               values_to = "return",
+               values_drop_na = TRUE)
+
+
+ggplot(z_analise %>% filter(period %in% c('sum_rt_t1', 'sum_rt_t2', 'sum_rt_t3'))) +
+ aes(x = data, fill = period, weight = return) +
+ geom_bar(position="dodge") +
+ scale_fill_hue() +
+ theme_minimal() +
+ labs(x = "Data", y = "Soma dos Retornos", title = "Retorno por Mês")
+
+ggplot(z_analise %>% filter(period %in% c('stop_ret_t1', 'stop_ret_t2', 'stop_ret_t3'))) +
+ aes(x = data, fill = period, weight = return) +
+ geom_bar(position="dodge") +
+ scale_fill_hue() +
+ theme_minimal() +
+ labs(x = "Data", y = "Soma dos Retornos", title = "Retorno por Mês")
+
+ggplot(z_analise %>% filter(period %in% c('sum_ret_stop', 'sum_ret'))) +
+ aes(x = data, fill = period, weight = return) +
+ geom_bar(position="dodge") +
+ scale_fill_hue() +
+ theme_minimal() +
+ labs(x = "Data", y = "Soma dos Retornos", title = "Retorno por Mês")
+
+```
+
+
+```{r}
+z_analise <- ls_abt_day_longer %>% ungroup() %>%  select(day, period, return) %>% 
+  filter(period %in% c('sum_rt_t1', 'sum_rt_t2', 'sum_rt_t3', 'sum_ret'))
+```
+
+
+# abt total
+```{r}
+ls_abt <- ls_eda_all %>% select(-1, -4:-7) %>%
+  unite(pair, c(left_side, right_side)) %>% 
+  group_by(pair, econ_rel, MCap_Classe, Setor, Subsetor, Segmento, Diffs) %>%
+  summarise(sum_rt_t1 = sum(sum_ret_t1, na.rm = TRUE),
+            sum_rt_t2 = sum(sum_ret_t2, na.rm = TRUE),
+            sum_rt_t3 = sum(sum_ret_t3, na.rm = TRUE),
+            sum_ret = sum(sum_ret, na.rm = TRUE),
+            stop_ret_t1 = sum(stop_ret_t1, na.rm = TRUE),
+            stop_ret_t2 = sum(stop_ret_t2, na.rm = TRUE),
+            stop_ret_t3 = sum(stop_ret_t3, na.rm = TRUE),
+            sum_ret_stop = sum(sum_ret_stop, na.rm = TRUE))
+
+# pivot longer
+ls_abt_longer <- ls_abt %>%
+  pivot_longer(cols = 8:15,
+               names_to = "period",
+               values_to = "return",
+               values_drop_na = TRUE) %>%
+  mutate(econ_rel = as.character(econ_rel),
+         Diffs = as.character(Diffs))
+
+ls_abt_longer_rt <- ls_abt_longer %>% filter(period %in% c('sum_rt_t1', 'sum_rt_t2', 'sum_rt_t3'))
+
+ls_abt_longer_sp <- ls_abt_longer %>% filter(period %in% c('stop_ret_t1', 'stop_ret_t2', 'stop_ret_t3'))
+
+```
+
+```{r}
+
+ggplot(ls_abt_longer_sp) +
+ aes(x = econ_rel, y = return, fill = Diffs) +
+ geom_boxplot() +
+ scale_fill_hue() +
+ theme_minimal() +
+ facet_wrap(vars(period))
+
+```
+
+```{r}
+ggplot(ls_eda_t1) +
+ aes(x = sum_ret_t1, y = open_days_t1, colour = result_t1) +
+ geom_point(size = 1L) +
+ scale_color_hue() +
+ theme_minimal() +
+ facet_wrap(vars(Diffs)) +
+ labs(x = "Retorno t1", y = "Tempo em Dias", title = "Retorno vs Tempo da Operação", subtitle = "Relação entre Resultado e Tempo")
+```
+
+
+```{r}
+ggplot(ls_eda_t2) +
+ aes(x = sum_ret_t2, y = open_days_t2, colour = result_t2) +
+ geom_point(size = 1L) +
+ scale_color_hue() +
+ theme_minimal() +
+ facet_wrap(vars(Diffs)) +
+ labs(x = "Retorno t2", y = "Tempo em Dias", title = "Retorno vs Tempo da Operação", subtitle = "Relação entre Resultado e Tempo")
+```
+
+
+```{r}
+ggplot(ls_eda_t3) +
+ aes(y = open_days_t3, x = sum_ret_t3, colour = result_t3) +
+ geom_point(size = 1L) +
+ scale_color_hue() +
+ theme_minimal() +
+ facet_wrap(vars(Diffs)) +
+ labs(x = "Retorno t3", y = "Tempo em Dias", title = "Retorno vs Tempo da Operação", subtitle = "Relação entre Resultado e Tempo")
+```
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+# Retorno Acumulado vs Bovespa
+names(BVSP_ret) <- 'BVSP_ret'
+rt1 <- ls_eda_t1 %>% select(day, sum_ret_t1) %>% group_by(day) %>% summarise(sum_ret_t1 = sum(sum_ret_t1))
+rt1 <- xts(rt1$sum_ret_t1, order.by=rt1$day)
+
+chart.TimeSeries(cumsum(rt1[,1]), grid.color = "white", element.color = "white",
+                 main=  "Retornos Acumulados IBOV vs Estratégia", legend.loc='bottomright')
+
+
+rt2 <- ls_eda_t2 %>% select(day, sum_ret_t2) %>% group_by(day) %>% summarise(sum_ret_t2 = sum(sum_ret_t2))
+rt2 <- xts(rt2$sum_ret_t2, order.by=rt2$day)
+
+rt3 <- ls_eda_t3 %>% select(day, sum_ret_t3) %>% group_by(day) %>% summarise(sum_ret_t3 = sum(sum_ret_t3))
+rt3 <- xts(rt3$sum_ret_t3, order.by=rt3$day)
+
+rt_t <- cbind(rt1, rt2, rt3)
+rt_t[is.na(rt_t)] <- 0
+
+rt1_stop <- ls_eda_t1 %>% select(day, stop_ret_t1) %>% group_by(day) %>% summarise(stop_ret_t1 = sum(stop_ret_t1))
+rt1_stop <- xts(rt1_stop$stop_ret_t1, order.by=rt1_stop$day)
+
+rt2_stop <- ls_eda_t2 %>% select(day, stop_ret_t2) %>% group_by(day) %>% summarise(stop_ret_t2 = sum(stop_ret_t2))
+rt2_stop <- xts(rt2_stop$stop_ret_t2, order.by=rt2_stop$day)
+
+rt3_stop <- ls_eda_t3 %>% select(day, stop_ret_t3) %>% group_by(day) %>% summarise(stop_ret_t3 = sum(stop_ret_t3))
+rt3_stop <- xts(rt3_stop$stop_ret_t3, order.by=rt3_stop$day)
+
+rt_t_stop <- cbind(rt1_stop, rt2_stop , rt3_stop)
+rt_t_stop [is.na(rt_t_stop )] <- 0
+
+comb_rt <- cbind(BVSP_ret['2019-06-07/'], rt_t, rt_t_stop)
+comb_rt[is.na(comb_rt)] <- 0
+charts.PerformanceSummary(comb_rt, main="Retornos")
+
+sum(comb_rt$rt1)
+sum(comb_rt$rt2)
+sum(comb_rt$rt3)
+
+sum(comb_rt$rt1_stop)
+sum(comb_rt$rt2_stop)
+sum(comb_rt$rt3_stop)
+
+
+comb_rt$sum_total <- (rowSums(comb_rt[,2:4]))
+comb_rt$stop_total <- (rowSums(comb_rt[,5:7]))
+
+chart.TimeSeries(cumsum(comb_rt[,c(1,2)]), grid.color = "white", element.color = "white",
+                 main=  "Retornos Acumulados IBOV vs Estratégia", legend.loc='bottomright')
+
+```
+
+
+
+
+

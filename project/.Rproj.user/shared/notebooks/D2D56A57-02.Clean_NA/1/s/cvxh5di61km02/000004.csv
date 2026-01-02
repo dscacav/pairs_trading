@@ -1,0 +1,25 @@
+"0",""
+"0","t(iris %>% select(starts_with(""Sepal"")) %>% summarise_all(funs(sum(is.na(.)))))"
+"2","`funs()` is deprecated as of dplyr 0.8.0.
+Please use a list of either functions or lambdas: 
+
+  # Simple named list: 
+  list(mean = mean, median = median)
+
+  # Auto named with `tibble::lst()`: 
+  tibble::lst(mean, median)
+
+  # Using lambdas
+  list(~ mean(., trim = .2), ~ median(., na.rm = TRUE))
+[90mThis warning is displayed once every 8 hours.[39m
+[90mCall `lifecycle::last_warnings()` to see where this warning was generated.[39m"
+"1","            "
+"1"," [,1]"
+"1","
+Sepal.Length"
+"1","    0"
+"1","
+Sepal.Width "
+"1","    0"
+"1","
+"

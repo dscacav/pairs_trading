@@ -1,0 +1,7 @@
+"0","ggplot(abt) +"
+"0"," aes(x = MCap_Classe, fill = Liq_Classe) +"
+"0"," geom_bar() +"
+"0"," scale_fill_hue() +"
+"0"," labs(title = ""Distribuição das Empresas por Market Cap"", subtitle = ""Sub-classificação por Liquidez"", fill = ""Liquidez"","
+"0","      x = ""Market Cap Classificação"", y = ""Quantidade"") +"
+"0"," theme_classic()"

@@ -1,0 +1,9 @@
+"0","# Reduzindo ainda mais o tamanho da base
+# Consulta igual para todos
+ls_eda <- ls_eda %>% select (1:7, 9, 14:18)
+"
+"2","Error: Can't subset columns that don't exist.
+[31mx[39m Locations 15, 16, 17, and 18 don't exist.
+[34mℹ[39m There are only 14 columns.
+[90mRun `rlang::last_error()` to see where the error occurred.[39m
+"

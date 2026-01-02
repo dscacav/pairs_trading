@@ -1,0 +1,872 @@
+
+# Libraries
+```{r, message=FALSE}
+library(tidyverse)
+library(lubridate)
+library(caret)
+library(xgboost)
+library(nnet)
+library(doParallel)
+library(neuralnet)
+library(MLeval)
+library(caretEnsemble)
+
+library(arules)
+library(gmodels)
+library(expss)
+
+library(InformationValue)
+
+```
+
+# Loading Data
+```{r}
+load('ls_eda_all.RData')
+```
+
+# Data (adicionando a classificação)
+```{r}
+ls_eda_t1$result_t1 <- ifelse(ls_eda_t1$stop_ret_t1 >=0,"yes","no")
+ls_eda_t1 <- ls_eda_t1 %>% select(-2:-5, -10, -13:-15, -17:-20, -23:-26)
+
+ls_eda_t2$result_t2 <- ifelse(ls_eda_t2$stop_ret_t2 >=0,"yes","no")
+ls_eda_t2 <- ls_eda_t2 %>% select(-2:-5, -10, -13:-15, -17:-20, -23:-26)
+
+ls_eda_t3$result_t3 <- ifelse(ls_eda_t3$stop_ret_t3 >=0,"yes","no")
+ls_eda_t3 <- ls_eda_t3 %>% select(-2:-5, -10, -13:-15, -17:-20, -23:-26)
+```
+
+
+# Data Splitting
+```{r}
+# t1
+x_train_t1 <- ls_eda_t1 %>% filter(day < '2020-03-01')
+x_train_t1$day <- NULL
+
+x_test_t1 <- ls_eda_t1 %>% filter(day >= '2020-03-01')
+x_test_t1$day <- NULL
+
+# t2
+x_train_t2 <- ls_eda_t2 %>% filter(day < '2020-03-01')
+x_train_t2$day <- NULL
+
+x_test_t2 <- ls_eda_t2 %>% filter(day >= '2020-03-01')
+x_test_t2$day <- NULL
+
+# t3
+x_train_t3 <- ls_eda_t3 %>% filter(day < '2020-03-01')
+x_train_t3$day <- NULL
+
+x_test_t3 <- ls_eda_t3 %>% filter(day >= '2020-03-01')
+x_test_t3$day <- NULL
+
+```
+
+# Probablidades
+## Probablidades t1
+```{r}
+print("t1 completa")
+table(ls_eda_t1$result_t1)
+prop.table(table(ls_eda_t1$result_t1))
+
+print("t1 treino")
+table(x_train_t1$result_t1)
+prop.table(table(x_train_t1$result_t1))
+
+print("t1 test")
+table(x_test_t1$result_t1)
+prop.table(table(x_test_t1$result_t1))
+```
+
+## Probablidades t2
+```{r}
+print("t2 completa")
+table(ls_eda_t2$result_t2)
+prop.table(table(ls_eda_t2$result_t2))
+
+print("t2 treino")
+table(x_train_t2$result_t2)
+prop.table(table(x_train_t2$result_t2))
+
+print("t2 test")
+table(x_test_t2$result_t2)
+prop.table(table(x_test_t2$result_t2))
+```
+
+## Probablidadest3
+```{r}
+print("t3 completa")
+table(ls_eda_t3$result_t3)
+prop.table(table(ls_eda_t3$result_t3))
+
+print("t3 treino")
+table(x_train_t3$result_t3)
+prop.table(table(x_train_t3$result_t3))
+
+print("t3 test")
+table(x_test_t3$result_t3)
+prop.table(table(x_test_t3$result_t3))
+```
+
+# PreProcess
+```{r}
+preProc_t1 <- preProcess(x_train_t1, method = c("center", "scale"))
+preProc_t2 <- preProcess(x_train_t2, method = c("center", "scale"))
+preProc_t3 <- preProcess(x_train_t3, method = c("center", "scale"))
+
+train_proc_t1 <- predict(preProc_t1, x_train_t1); test_proc_t1 <- predict(preProc_t1, x_test_t1)
+train_proc_t2 <- predict(preProc_t2, x_train_t2); test_proc_t2 <- predict(preProc_t2, x_test_t2)
+train_proc_t3 <- predict(preProc_t3, x_train_t3); test_proc_t3 <- predict(preProc_t3, x_test_t3)
+```
+
+# Paralelo On
+```{r}
+numCores <- detectCores()
+cl <- makePSOCKcluster(numCores-1)
+registerDoParallel(cl)
+```
+
+# Modelos
+## t1 Modelo
+```{r}
+# Stacking Algorithms - Run multiple algos in one call.
+trainControl <- trainControl(method="repeatedcv", 
+                             number=10, 
+                             repeats=3,
+                             savePredictions=TRUE, 
+                             classProbs=TRUE,
+                             summaryFunction = twoClassSummary)
+
+algorithmList <- c('rf', 'adaboost', 'earth', 'xgbDART', 'svmRadial', 'xgbTree', 'knn',
+                   'nb', 'naive_bayes', 'gbm','nnet','C5.0', 'rpart')
+
+models_t1 <- caretList(result_t1 ~., data = train_proc_t1, trControl=trainControl,
+                    methodList=algorithmList, metric = "ROC") 
+
+results_t1 <- resamples(models_t1)
+
+summary(results_t1)
+```
+
+## t1 getTrainPerf
+```{r}
+t(sapply(models_t1, getTrainPerf))
+```
+
+
+## t2 Modelo
+```{r}
+# Stacking Algorithms - Run multiple algos in one call.
+trainControl <- trainControl(method="repeatedcv", 
+                             number=10, 
+                             repeats=3,
+                             savePredictions=TRUE, 
+                             classProbs=TRUE,
+                             summaryFunction = twoClassSummary)
+
+algorithmList <- c('rf', 'adaboost', 'earth', 'xgbDART', 'svmRadial', 'xgbTree', 'knn',
+                   'nb', 'naive_bayes', 'gbm','nnet','C5.0', 'rpart')
+
+models_t2 <- caretList(result_t2 ~., data = train_proc_t2, trControl=trainControl,
+                    methodList=algorithmList, metric = "ROC") 
+
+results_t2 <- resamples(models_t2)
+
+summary(results_t2)
+```
+
+## t2 getTrainPerf
+```{r}
+t(sapply(models_t2, getTrainPerf))
+```
+
+
+## t3 Modelo
+```{r}
+# Stacking Algorithms - Run multiple algos in one call.
+trainControl <- trainControl(method="repeatedcv", 
+                             number=10, 
+                             repeats=3,
+                             savePredictions=TRUE, 
+                             classProbs=TRUE,
+                             summaryFunction = twoClassSummary)
+
+algorithmList <- c('rf', 'adaboost', 'earth', 'xgbDART', 'svmRadial', 'xgbTree', 'knn',
+                   'nb', 'naive_bayes', 'gbm','nnet','C5.0', 'rpart')
+
+models_t3 <- caretList(result_t3 ~., data = train_proc_t3, trControl=trainControl,
+                    methodList=algorithmList, metric = "ROC") 
+
+results_t3 <- resamples(models_t3)
+
+summary(results_t3)
+```
+
+## t3 getTrainPerf
+```{r}
+t(sapply(models_t3, getTrainPerf))
+```
+
+# Paralelo Off
+```{r}
+stopCluster(cl)
+registerDoSEQ()
+```
+
+# t1 - ponto de Corte por faixa
+## rf
+```{r}
+fitted_prob_t1 <- predict(models_t1$rf, test_proc_t1, type="prob")
+fitted_prob_t1$class <- fitted_prob_t1
+
+fitted_prob_t1$prob_faixas <- discretize(fitted_prob_t1$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t1$prob_faixas, test_proc_t1$result_t1)
+cro_cases(fitted_prob_t1$prob_faixas, test_proc_t1$result_t1)
+```
+
+## gbm
+```{r}
+fitted_prob_t1 <- predict(models_t1$gbm, test_proc_t1, type="prob")
+fitted_prob_t1$class <- fitted_prob_t1
+
+fitted_prob_t1$prob_faixas <- discretize(fitted_prob_t1$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t1$prob_faixas, test_proc_t1$result_t1)
+cro_cases(fitted_prob_t1$prob_faixas, test_proc_t1$result_t1)
+```
+
+## xgbDART
+```{r}
+fitted_prob_t1 <- predict(models_t1$xgbDART, test_proc_t1, type="prob")
+fitted_prob_t1$class <- fitted_prob_t1
+
+fitted_prob_t1$prob_faixas <- discretize(fitted_prob_t1$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t1$prob_faixas, test_proc_t1$result_t1)
+cro_cases(fitted_prob_t1$prob_faixas, test_proc_t1$result_t1)
+```
+
+## nnet
+```{r}
+fitted_prob_t1 <- predict(models_t1$nnet, test_proc_t1, type="prob")
+fitted_prob_t1$class <- fitted_prob_t1
+
+fitted_prob_t1$prob_faixas <- discretize(fitted_prob_t1$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t1$prob_faixas, test_proc_t1$result_t1)
+cro_cases(fitted_prob_t1$prob_faixas, test_proc_t1$result_t1)
+```
+
+## xgbTree
+```{r}
+fitted_prob_t1 <- predict(models_t1$xgbTree, test_proc_t1, type="prob")
+fitted_prob_t1$class <- fitted_prob_t1
+
+fitted_prob_t1$prob_faixas <- discretize(fitted_prob_t1$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t1$prob_faixas, test_proc_t1$result_t1)
+cro_cases(fitted_prob_t1$prob_faixas, test_proc_t1$result_t1)
+```
+
+## svmRadial
+```{r}
+fitted_prob_t1 <- predict(models_t1$svmRadial, test_proc_t1, type="prob")
+fitted_prob_t1$class <- fitted_prob_t1
+
+fitted_prob_t1$prob_faixas <- discretize(fitted_prob_t1$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t1$prob_faixas, test_proc_t1$result_t1)
+cro_cases(fitted_prob_t1$prob_faixas, test_proc_t1$result_t1)
+```
+
+
+
+
+
+
+
+# t2 - ponto de Corte por faixa
+## rf
+```{r}
+fitted_prob_t2 <- predict(models_t2$rf, test_proc_t2, type="prob")
+fitted_prob_t2$class <- fitted_prob_t2
+
+fitted_prob_t2$prob_faixas <- discretize(fitted_prob_t2$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t2$prob_faixas, test_proc_t2$result_t2)
+cro_cases(fitted_prob_t2$prob_faixas, test_proc_t2$result_t2)
+```
+
+## svmRadial
+```{r}
+fitted_prob_t2 <- predict(models_t2$svmRadial, test_proc_t2, type="prob")
+fitted_prob_t2$class <- fitted_prob_t2
+
+fitted_prob_t2$prob_faixas <- discretize(fitted_prob_t2$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t2$prob_faixas, test_proc_t2$result_t2)
+cro_cases(fitted_prob_t2$prob_faixas, test_proc_t2$result_t2)
+```
+
+
+## nnet
+```{r}
+fitted_prob_t2 <- predict(models_t2$nnet, test_proc_t2, type="prob")
+fitted_prob_t2$class <- fitted_prob_t2
+
+fitted_prob_t2$prob_faixas <- discretize(fitted_prob_t2$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t2$prob_faixas, test_proc_t2$result_t2)
+cro_cases(fitted_prob_t2$prob_faixas, test_proc_t2$result_t2)
+```
+
+
+## xgbDART
+```{r}
+fitted_prob_t2 <- predict(models_t2$xgbDART, test_proc_t2, type="prob")
+fitted_prob_t2$class <- fitted_prob_t2
+
+fitted_prob_t2$prob_faixas <- discretize(fitted_prob_t2$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t2$prob_faixas, test_proc_t2$result_t2)
+cro_cases(fitted_prob_t2$prob_faixas, test_proc_t2$result_t2)
+```
+
+## xgbTree
+```{r}
+fitted_prob_t2 <- predict(models_t2$xgbTree, test_proc_t2, type="prob")
+fitted_prob_t2$class <- fitted_prob_t2
+
+fitted_prob_t2$prob_faixas <- discretize(fitted_prob_t2$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t2$prob_faixas, test_proc_t2$result_t2)
+cro_cases(fitted_prob_t2$prob_faixas, test_proc_t2$result_t2)
+```
+
+## gbm
+```{r}
+fitted_prob_t2 <- predict(models_t2$gbm, test_proc_t2, type="prob")
+fitted_prob_t2$class <- fitted_prob_t2
+
+fitted_prob_t2$prob_faixas <- discretize(fitted_prob_t2$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t2$prob_faixas, test_proc_t2$result_t2)
+cro_cases(fitted_prob_t2$prob_faixas, test_proc_t2$result_t2)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+# t3 - ponto de Corte por faixa
+## rf
+```{r}
+fitted_prob_t3 <- predict(models_t3$rf, test_proc_t3, type="prob")
+fitted_prob_t3$class <- fitted_prob_t3
+
+fitted_prob_t3$prob_faixas <- discretize(fitted_prob_t3$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t3$prob_faixas, test_proc_t3$result_t3)
+cro_cases(fitted_prob_t3$prob_faixas, test_proc_t3$result_t3)
+```
+
+## xgbDART
+```{r}
+fitted_prob_t3 <- predict(models_t3$xgbDART, test_proc_t3, type="prob")
+fitted_prob_t3$class <- fitted_prob_t3
+
+fitted_prob_t3$prob_faixas <- discretize(fitted_prob_t3$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t3$prob_faixas, test_proc_t3$result_t3)
+cro_cases(fitted_prob_t3$prob_faixas, test_proc_t3$result_t3)
+```
+
+## gbm
+```{r}
+fitted_prob_t3 <- predict(models_t3$gbm, test_proc_t3, type="prob")
+fitted_prob_t3$class <- fitted_prob_t3
+
+fitted_prob_t3$prob_faixas <- discretize(fitted_prob_t3$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t3$prob_faixas, test_proc_t3$result_t3)
+cro_cases(fitted_prob_t3$prob_faixas, test_proc_t3$result_t3)
+```
+
+## xgbTree
+```{r}
+fitted_prob_t3 <- predict(models_t3$xgbTree, test_proc_t3, type="prob")
+fitted_prob_t3$class <- fitted_prob_t3
+
+fitted_prob_t3$prob_faixas <- discretize(fitted_prob_t3$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t3$prob_faixas, test_proc_t3$result_t3)
+cro_cases(fitted_prob_t3$prob_faixas, test_proc_t3$result_t3)
+```
+
+## nnet
+```{r}
+fitted_prob_t3 <- predict(models_t3$nnet, test_proc_t3, type="prob")
+fitted_prob_t3$class <- fitted_prob_t3
+
+fitted_prob_t3$prob_faixas <- discretize(fitted_prob_t3$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t3$prob_faixas, test_proc_t3$result_t3)
+cro_cases(fitted_prob_t3$prob_faixas, test_proc_t3$result_t3)
+```
+
+## earth
+```{r}
+fitted_prob_t3 <- predict(models_t3$earth, test_proc_t3, type="prob")
+fitted_prob_t3$class <- fitted_prob_t3
+
+fitted_prob_t3$prob_faixas <- discretize(fitted_prob_t3$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t3$prob_faixas, test_proc_t3$result_t3)
+cro_cases(fitted_prob_t3$prob_faixas, test_proc_t3$result_t3)
+```
+
+
+# t1 hyper parametros
+
+## nnet hyper
+```{r}
+numCores <- detectCores()
+cl <- makePSOCKcluster(numCores-1)
+registerDoParallel(cl)
+
+trctrl <- trainControl(
+    method = 'repeatedcv',           # k-fold cross validation
+    number = 5,                      # number of folds
+    repeats = 5,
+    classProbs = TRUE,                  # should class probabilities be returned
+    summaryFunction=twoClassSummary  # results summary function
+) 
+
+tune_grid <- expand.grid(size=c(5), decay=c(0.5, 0.3, 0.1))
+
+nnet <- train(result_t1 ~., data = train_proc_t1, method = "nnet",
+           trControl=trctrl,
+           tuneGrid = tune_grid,
+           tuneLength = 20,
+           verbose = FALSE,
+           metric = "ROC")
+
+stopCluster(cl)
+registerDoSEQ()
+
+nnet
+
+```
+
+## nnet importance
+```{r}
+varimp_nnet <- varImp(nnet)
+
+plot(varimp_nnet, main = "Variable Importance (nnet)")
+```
+
+## nnet confusion matrix
+```{r}
+fitted_t1 <- predict(nnet, test_proc_t1)
+caret::confusionMatrix(fitted_t1, factor(test_proc_t1$result_t1), positive='no')
+```
+
+## nnet resultado
+```{r}
+fitted_prob_t1 <- predict(nnet, test_proc_t1, type="prob")
+fitted_prob_t1$class <- fitted_prob_t1
+
+fitted_prob_t1$prob_faixas <- discretize(fitted_prob_t1$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t1$prob_faixas, test_proc_t1$result_t1)
+cro_cases(fitted_prob_t1$prob_faixas, test_proc_t1$result_t1)
+
+```
+
+## nnet curvas
+```{r}
+test_fit <- predict(nnet, test_proc_t1, type="prob")
+ks_stat(actuals=ifelse(test_proc_t1$result_t1=='yes',1,0), predicted=test_fit$yes)
+plotROC(actuals=ifelse(test_proc_t1$result_t1=='yes',1,0), predicted=test_fit$yes)
+```
+
+## xgb hyper
+```{r}
+
+numCores <- detectCores()
+cl <- makePSOCKcluster(numCores-1)
+registerDoParallel(cl)
+
+trctrl <- trainControl(
+    method = 'repeatedcv',           # k-fold cross validation
+    number = 10,                      # number of folds
+    repeats = 5,
+    classProbs = TRUE,                  # should class probabilities be returned
+    summaryFunction=twoClassSummary  # results summary function
+) 
+
+tune_grid <- expand.grid(nrounds=c(100,200,300), 
+                         max_depth = c(10:15),
+                         eta = c(0.05, 1),
+                         gamma = c(0.01),
+                         colsample_bytree = c(0.75),
+                         subsample = c(0.50),
+                         min_child_weight = c(0))
+
+xgb <- train(result_t1 ~., data = train_proc_t1, method = "xgbTree",
+           trControl=trctrl,
+           tuneGrid = tune_grid,
+           tuneLength = 20,
+           verbose = FALSE,
+           metric = "ROC")
+
+stopCluster(cl)
+registerDoSEQ()
+
+xgb
+
+```
+
+## xgb importance
+```{r}
+varimp <- varImp(xgb)
+plot(varimp, main = "Variable Importance (xgb)")
+```
+
+## xgb confusion matrix
+```{r}
+fitted_t1 <- predict(xgb, test_proc_t1)
+caret::confusionMatrix(fitted_t1, factor(test_proc_t1$result_t1), positive='no')
+```
+
+## xgb resultado
+```{r}
+fitted_prob_t1 <- predict(xgb, test_proc_t1, type="prob")
+fitted_prob_t1$class <- fitted_prob_t1
+
+fitted_prob_t1$prob_faixas <- discretize(fitted_prob_t1$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t1$prob_faixas, test_proc_t1$result_t1)
+cro_cases(fitted_prob_t1$prob_faixas, test_proc_t1$result_t1)
+
+```
+
+## xgb curvas
+```{r}
+test_fit <- predict(xgb, test_proc_t1, type="prob")
+ks_stat(actuals=ifelse(test_proc_t1$result_t1=='yes',1,0), predicted=test_fit$yes)
+plotROC(actuals=ifelse(test_proc_t1$result_t1=='yes',1,0), predicted=test_fit$yes)
+```
+
+# t2 hyper parametros
+
+## gbm hyper
+```{r}
+
+numCores <- detectCores()
+cl <- makePSOCKcluster(numCores-1)
+registerDoParallel(cl)
+
+trctrl <- trainControl(
+    method = 'repeatedcv',           # k-fold cross validation
+    number = 10,                      # number of folds
+    repeats = 5,
+    classProbs = TRUE,                  # should class probabilities be returned
+    summaryFunction=twoClassSummary  # results summary function
+) 
+
+tune_grid <- expand.grid(n.trees = c(100, 150, 200),
+                         shrinkage = c(.01, .05, .1),
+                         interaction.depth = c(2, 3, 4),
+                         n.minobsinnode = c(10, 13)
+)
+
+gbm <- train(result_t2 ~., data = train_proc_t2, method = "gbm",
+           trControl=trctrl,
+           tuneGrid = tune_grid,
+           tuneLength = 20,
+           verbose = FALSE,
+           metric = "ROC")
+
+stopCluster(cl)
+registerDoSEQ()
+
+gbm
+
+```
+
+## gbm importance
+```{r}
+#library(gbm)
+summary(gbm)
+```
+
+## gbm confusion matrix
+```{r}
+fitted_t2 <- predict(gbm, test_proc_t2)
+caret::confusionMatrix(fitted_t2, factor(test_proc_t2$result_t2), positive='no')
+```
+
+## gbm resultado
+```{r}
+fitted_prob_t2 <- predict(gbm, test_proc_t2, type="prob")
+fitted_prob_t2$class <- fitted_prob_t2
+
+fitted_prob_t2$prob_faixas <- discretize(fitted_prob_t2$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t2$prob_faixas, test_proc_t2$result_t2)
+cro_cases(fitted_prob_t2$prob_faixas, test_proc_t2$result_t2)
+
+```
+
+## gbm curvas
+```{r}
+test_fit <- predict(gbm, test_proc_t2, type="prob")
+ks_stat(actuals=ifelse(test_proc_t2$result_t2=='yes',1,0), predicted=test_fit$yes)
+plotROC(actuals=ifelse(test_proc_t2$result_t2=='yes',1,0), predicted=test_fit$yes)
+```
+
+## xgb hyper
+```{r}
+numCores <- detectCores()
+cl <- makePSOCKcluster(numCores-1)
+registerDoParallel(cl)
+
+trctrl <- trainControl(
+    method = 'repeatedcv',           # k-fold cross validation
+    number = 10,                      # number of folds
+    repeats = 5,
+    classProbs = TRUE,                  # should class probabilities be returned
+    summaryFunction=twoClassSummary  # results summary function
+) 
+
+tune_grid <- expand.grid(nrounds=c(100,200,300), 
+                         max_depth = c(10:15),
+                         eta = c(0.05, 1),
+                         gamma = c(0.01),
+                         colsample_bytree = c(0.75),
+                         subsample = c(0.50),
+                         min_child_weight = c(0))
+
+xgb <- train(result_t2 ~., data = train_proc_t2, method = "xgbTree",
+           trControl=trctrl,
+           tuneGrid = tune_grid,
+           tuneLength = 20,
+           verbose = FALSE,
+           metric = "ROC")
+
+stopCluster(cl)
+registerDoSEQ()
+
+xgb
+```
+
+## xgb importance
+```{r}
+varimp <- varImp(xgb)
+plot(varimp, main = "Variable Importance (xgb)")
+```
+
+## xgb confusion matrix
+```{r}
+fitted_t2 <- predict(xgb, test_proc_t2)
+caret::confusionMatrix(fitted_t2, factor(test_proc_t2$result_t2), positive='no')
+```
+
+## xgb resultado
+```{r}
+fitted_prob_t2 <- predict(xgb, test_proc_t2, type="prob")
+fitted_prob_t2$class <- fitted_prob_t2
+
+fitted_prob_t2$prob_faixas <- discretize(fitted_prob_t2$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t2$prob_faixas, test_proc_t2$result_t2)
+cro_cases(fitted_prob_t2$prob_faixas, test_proc_t2$result_t2)
+```
+
+## xgb curvas
+```{r}
+test_fit <- predict(xgb, test_proc_t2, type="prob")
+ks_stat(actuals=ifelse(test_proc_t2$result_t2=='yes',1,0), predicted=test_fit$yes)
+plotROC(actuals=ifelse(test_proc_t2$result_t2=='yes',1,0), predicted=test_fit$yes)
+```
+
+# t3 hyper parametros
+
+## gbm hyper
+```{r}
+numCores <- detectCores()
+cl <- makePSOCKcluster(numCores-1)
+registerDoParallel(cl)
+
+trctrl <- trainControl(
+    method = 'repeatedcv',           # k-fold cross validation
+    number = 10,                      # number of folds
+    repeats = 5,
+    classProbs = TRUE,                  # should class probabilities be returned
+    summaryFunction=twoClassSummary  # results summary function
+) 
+
+tune_grid <- expand.grid(n.trees = c(50, 150, 250),
+                         shrinkage = c(.01, .1),
+                         interaction.depth = c(7, 10, 15),
+                         n.minobsinnode = c(7, 10, 15)
+)
+
+gbm <- train(result_t3 ~., data = train_proc_t3, method = "gbm",
+           trControl=trctrl,
+           tuneGrid = tune_grid,
+           tuneLength = 20,
+           verbose = FALSE,
+           metric = "ROC")
+
+stopCluster(cl)
+registerDoSEQ()
+
+gbm
+
+```
+
+## gbm importance
+```{r}
+#library(gbm)
+summary(gbm)
+```
+
+## gbm confusion matrix
+```{r}
+fitted_t3 <- predict(gbm, test_proc_t3)
+caret::confusionMatrix(fitted_t3, factor(test_proc_t3$result_t3), positive='no')
+```
+
+## gbm resultado
+```{r}
+fitted_prob_t3 <- predict(gbm, test_proc_t3, type="prob")
+fitted_prob_t3$class <- fitted_prob_t3
+
+fitted_prob_t3$prob_faixas <- discretize(fitted_prob_t3$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t3$prob_faixas, test_proc_t3$result_t3)
+cro_cases(fitted_prob_t3$prob_faixas, test_proc_t3$result_t3)
+
+```
+
+## gbm curvas
+```{r}
+test_fit <- predict(gbm, test_proc_t3, type="prob")
+ks_stat(actuals=ifelse(test_proc_t3$result_t3=='yes',1,0), predicted=test_fit$yes)
+plotROC(actuals=ifelse(test_proc_t3$result_t3=='yes',1,0), predicted=test_fit$yes)
+```
+
+
+## xgb hyper
+```{r}
+
+numCores <- detectCores()
+cl <- makePSOCKcluster(numCores-1)
+registerDoParallel(cl)
+
+trctrl <- trainControl(
+    method = 'repeatedcv',           # k-fold cross validation
+    number = 10,                      # number of folds
+    repeats = 5,
+    classProbs = TRUE,                  # should class probabilities be returned
+    summaryFunction=twoClassSummary  # results summary function
+) 
+
+tune_grid <- expand.grid(nrounds=c(100,200,300), 
+                         max_depth = c(10:15),
+                         eta = c(0.05, 1),
+                         gamma = c(0.01),
+                         colsample_bytree = c(0.75),
+                         subsample = c(0.50),
+                         min_child_weight = c(0))
+
+xgb <- train(result_t3 ~., data = train_proc_t3, method = "xgbTree",
+           trControl=trctrl,
+           tuneGrid = tune_grid,
+           tuneLength = 20,
+           verbose = FALSE,
+           metric = "ROC")
+
+stopCluster(cl)
+registerDoSEQ()
+
+xgb
+
+```
+
+## xgb importance
+```{r}
+varimp <- varImp(xgb)
+plot(varimp, main = "Variable Importance (xgb)")
+```
+
+## xgb confusion matrix
+```{r}
+fitted_t3 <- predict(xgb, test_proc_t3)
+caret::confusionMatrix(fitted_t3, factor(test_proc_t3$result_t3), positive='no')
+```
+
+## xgb resultado
+```{r}
+fitted_prob_t3 <- predict(xgb, test_proc_t3, type="prob")
+fitted_prob_t3$class <- fitted_prob_t3
+
+fitted_prob_t3$prob_faixas <- discretize(fitted_prob_t3$yes, method="frequency", breaks=10)
+
+cro_rpct(fitted_prob_t3$prob_faixas, test_proc_t3$result_t3)
+cro_cases(fitted_prob_t3$prob_faixas, test_proc_t3$result_t3)
+
+```
+
+## xgb curvas
+```{r}
+test_fit <- predict(xgb, test_proc_t3, type="prob")
+ks_stat(actuals=ifelse(test_proc_t3$result_t3=='yes',1,0), predicted=test_fit$yes)
+plotROC(actuals=ifelse(test_proc_t3$result_t3=='yes',1,0), predicted=test_fit$yes)
+```
+
+# Comparando modelos (não usei)
+## Compara o resultado estatisticamente
+```{r}
+#modelDifferences_t1 <- diff(results_t1)
+#summary(modelDifferences_t1)
+
+## The actual paired t-test:
+#modelDifferences_t1$statistics$ROC
+```
+
+## ROC um por um
+```{r}
+#library(MLeval)
+#res <- evalm(models$rf)
+```
+
+## ROC todos juntos
+```{r}
+#library(MLeval)
+# tive que separar em 2 partes, ele não suporta rodar mais que 10
+# part 1
+#evalm(list(models_t1$rf, models_t1$adaboost, models_t1$earth, models_t1$xgbDART,
+#           models_t1$svmRadial, models_t1$xgbTree, models_t1$knn),
+#           gnames=c('rf', 'adaboost', 'earth', 'xgbDART', 'svmRadial', 'xgbTree', 'knn'))
+```
+
+```{r}
+# part 2
+#evalm(list(models_t1$nb, models_t1$naive_bayes, models_t1$gbm,
+#           models_t1$nnet, models_t1$C5.0, models_t1$rpart),
+#           gnames=c('nb', 'naive_bayes', 'gbm', 'nnet', 'C5.0', 'rpart'))
+```
+
+

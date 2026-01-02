@@ -1,0 +1,627 @@
+
+```{r, message=FALSE}
+library(tidyverse)
+library(tseries)
+library(quantmod)
+library(esquisse)
+```
+
+```{r}
+load("df1.RData")
+df1 <- df 
+rm(df)
+load("df2.RData")
+df2 <- df
+rm(df)
+load("df3.RData")
+df3 <- df
+rm(df)
+load("df4.RData")
+df4 <- df
+rm(df)
+load("df5.RData")
+df5 <- df
+rm(df)
+
+#df <- rbind(df1, df2, df3, df4, df5)
+#rm(df1, df2, df3, df4, df5)
+#eucl_ratio <- df %>% select(1:7)
+#save(eucl_ratio, file = "eucl_ratio.RData")
+
+df1_t1 <- df1 %>% select (1:5, 8, 11:17)
+df1_t2 <- df1 %>% select (1:5, 9, 18:24)
+df1_t3 <- df1 %>% select (1:5, 10, 25:31)
+
+df2_t1 <- df2 %>% select (1:5, 8, 11:17)
+df2_t2 <- df2 %>% select (1:5, 9, 18:24)
+df2_t3 <- df2 %>% select (1:5, 10, 25:31)
+
+df3_t1 <- df3 %>% select (1:5, 8, 11:17)
+df3_t2 <- df3 %>% select (1:5, 9, 18:24)
+df3_t3 <- df3 %>% select (1:5, 10, 25:31)
+
+df4_t1 <- df4 %>% select (1:5, 8, 11:17)
+df4_t2 <- df4 %>% select (1:5, 9, 18:24)
+df4_t3 <- df4 %>% select (1:5, 10, 25:31)
+
+df5_t1 <- df5 %>% select (1:5, 8, 11:17)
+df5_t2 <- df5 %>% select (1:5, 9, 18:24)
+df5_t3 <- df5 %>% select (1:5, 10, 25:31)
+
+save(df1_t1, file = "df1_t1.RData")
+save(df1_t2, file = "df1_t2.RData")
+save(df1_t3, file = "df1_t3.RData")
+
+save(df2_t1, file = "df2_t1.RData")
+save(df2_t2, file = "df2_t2.RData")
+save(df2_t3, file = "df2_t3.RData")
+
+save(df3_t1, file = "df3_t1.RData")
+save(df3_t2, file = "df3_t2.RData")
+save(df3_t3, file = "df3_t3.RData")
+
+save(df4_t1, file = "df4_t1.RData")
+save(df4_t2, file = "df4_t2.RData")
+save(df4_t3, file = "df4_t3.RData")
+
+save(df5_t1, file = "df5_t1.RData")
+save(df5_t2, file = "df5_t2.RData")
+save(df5_t3, file = "df5_t3.RData")
+
+rm(list =ls())
+
+```
+
+```{r}
+#load("df1_t1.RData")
+#load("df1_t2.RData")
+#load("df1_t3.RData")
+
+#load("df2_t1.RData")
+#load("df2_t2.RData")
+#load("df2_t3.RData")
+
+#load("df3_t1.RData")
+#load("df3_t2.RData")
+#load("df3_t2.RData")
+
+#load("df4_t1.RData")
+#load("df4_t2.RData")
+#load("df4_t3.RData")
+
+#load("df5_t1.RData")
+#load("df5_t2.RData")
+#load("df5_t3.RData")
+
+```
+
+
+```{r}
+ls_eda <-  df5_t1 %>%  mutate(scale_t1 = (sprd_last_t1 - sprd_mean_t1)  / sprd_sd_t1)
+
+ls_eda <-  df5_t2 %>%  mutate(scale_t2 = (sprd_last_t2 - sprd_mean_t2)  / sprd_sd_t2)
+
+ls_eda <-  df5_t3 %>%  mutate(scale_t3 = (sprd_last_t3 - sprd_mean_t3)  / sprd_sd_t3)
+
+sum(is.na(ls_eda))
+ls_eda[is.na(ls_eda)] <- 0
+
+
+#ls_eda <-  ls_eda %>%  mutate(scale_t1 = (sprd_last_t1 - sprd_mean_t1)  / sprd_sd_t1,
+#                              scale_t2 = (sprd_last_t2 - sprd_mean_t2)  / sprd_sd_t2,
+#                              scale_t3 = (sprd_last_t3 - sprd_mean_t3)  / sprd_sd_t3)
+
+```
+
+
+# trading t1
+```{r}
+
+start_time <- Sys.time()
+
+f_sd <- 2
+f_beta <- 0
+f_pvalue <- 0.05
+f_correl <- 0.5
+out_signal <- 0.05
+
+# Gera o sinal de entrada
+ls_eda$signal_t1 <- with(ls_eda, ifelse(lag(scale_t1) < f_sd & scale_t1 >= f_sd, 2,
+                                      ifelse(lag(scale_t1) > -f_sd & scale_t1 <= -f_sd, -2, 0)))
+# Gera o filtro de entrada
+ls_eda$filter_t1 <- with(ls_eda, ifelse(beta_t1 > f_beta & pvalue_t1 < f_pvalue & correl_t1 > f_correl, 1, 0))
+
+# Gera o sinal de saída
+ls_eda$out_t1 <- with(ls_eda, ifelse(lag(scale_t1) > out_signal & scale_t1 <= out_signal, 1,
+                                   ifelse(lag(scale_t1) < -out_signal & scale_t1 >= -out_signal, -1, 0)))
+
+# Elimina NA da primeira linha causado pelo lag
+ls_eda$signal_t1[is.na(ls_eda$signal_t1)] <- 0
+ls_eda$out_t1[is.na(ls_eda$out_t1)] <- 0
+
+# em teoria somente a primeira linha pode ser NA
+ls_eda$pos_t1 <- 0
+
+# Define se estou posicionado ou não
+active <- 0
+pos <- 0
+
+for(i in 2:nrow(ls_eda)){
+  # Active = 0 & (Signal = 0 | Filter = 0)
+  if (active == 0 & (ls_eda$signal_t1[i] == 0 | ls_eda$filter_t1[i] == 0)) {
+    ls_eda$pos_t1[i] <- 0
+  # Active = 0 & (Signal = 2 & Filter = 1) & Out = 0
+  } else if (active == 0 & (ls_eda$signal_t1[i] == 2 & ls_eda$filter_t1[i] == 1)) {
+    active <- 1
+    pos <- -1
+    ls_eda$pos_t1[i+1] <- pos
+    # Active = 0 & (Signal = -2 & Filter = 1) & Out = 0
+  } else if (active == 0 & (ls_eda$signal_t1[i] == -2 & ls_eda$filter_t1[i] == 1)) {
+    active <- 1
+    pos <- 1
+    ls_eda$pos_t1[i+1] <- pos
+    # Active = 1 & Out = 0
+  } else if (active == 1 & ls_eda$out_t1[i] == 0) {
+    ls_eda$pos_t1[i] <- pos
+    # Active = 1 & (Signal = 2 & Filter = 1) & Out = 1
+  } else if (active == 1 & (ls_eda$signal_t1[i] == 2 & ls_eda$filter_t1[i] == 1) & ls_eda$out_t1[i] != 0) {
+    pos <- -1
+    ls_eda$pos_t1[i+1] <- pos
+    # Active = 1 & (Signal = -2 & Filter = 1) & Out = 1
+  } else if (active == 1 & (ls_eda$signal_t1[i] == -2 & ls_eda$filter_t1[i] == 1) & ls_eda$out_t1[i] != 0) {
+    pos <- 1
+    ls_eda$pos_t1[i+1] <- pos
+    # Active = 1 & (Signal = 0 & Filter = 0) & Out = 1
+  } else if (active == 1 & (ls_eda$signal_t1[i] == 0 | ls_eda$filter_t1[i] == 0) & ls_eda$out_t1[i] != 0) {
+    active <- 0
+    ls_eda$pos_t1[i] <- pos
+  }
+}
+
+# Gera os retornos dos dias posicionados
+ls_eda$return_t1 <- with(ls_eda, ((price_l / lag(price_l)-1) - beta_t1 * (price_r / lag(price_r)-1)) * pos_t1)
+
+# Elimina NA da primeira linha causado pelo lag
+ls_eda$return_t1[is.na(ls_eda$return_t1)] <- 0
+
+# Numerar a posição e o lucro
+ls_eda$trade_t1 <- 0
+ls_eda$sum_ret_t1 <- 0
+ls_eda$open_days_t1 <- 0
+
+active <- 0
+open_line <- 0
+counter <- 0
+count_days <- 0
+sum_ret <- 0
+
+for(i in 1:nrow(ls_eda)){
+  # Active = 0 & Signal = 0
+  if(active == 0 & (ls_eda$signal_t1[i] == 0 | ls_eda$filter_t1[i] == 0)){
+    # Active = 0 & Signal = 1
+  } else if (active == 0 & (ls_eda$signal_t1[i] != 0  & ls_eda$filter_t1[i] != 0)) {
+    active <- 1
+    open_line <- i
+    counter <- counter + 1
+    ls_eda$trade_t1[i] <- counter
+    sum_ret <- 0
+    count_days <- 0
+    # Active = 1 & Out = 0 & Signal = 0
+  } else if (active == 1 & ls_eda$out_t1[i] == 0 & (ls_eda$signal_t1[i] == 0 | ls_eda$filter_t1[i] == 0)) {
+    sum_ret <- sum_ret + ls_eda$return_t1[i]
+    count_days <- count_days + 1
+    # Active = 1 & Out = 0 & Signal = 1
+  } else if(active == 1 & ls_eda$out_t1[i] == 0 & (ls_eda$signal_t1[i] != 0 & ls_eda$filter_t1[i] != 0)) {
+    sum_ret <- sum_ret + ls_eda$return_t1[i]
+    count_days <- count_days + 1
+    # Active = 1 & Out = 1 & Signal = 0
+  } else if (active == 1 & ls_eda$out_t1[i] != 0 & (ls_eda$signal_t1[i] == 0 | ls_eda$filter_t1[i] == 0)) {
+    sum_ret <- sum_ret + ls_eda$return_t1[i]
+    count_days <- count_days + 1
+    ls_eda$sum_ret_t1[open_line] <- sum_ret
+    ls_eda$open_days_t1[open_line] <- count_days
+    sum_ret <- 0
+    count_days <- 0
+    active <- 0
+    # Active = 1 & Out = 1 & Signal = 1
+  } else if(active == 1 & ls_eda$out_t1[i] != 0 & (ls_eda$signal_t1[i] != 0 & ls_eda$filter_t1[i] != 0)) {
+    sum_ret <- sum_ret + ls_eda$return_t1[i]
+    count_days <- count_days + 1
+    ls_eda$sum_ret_t1[open_line] <- sum_ret
+    ls_eda$open_days_t1[open_line] <- count_days
+    open_line <- i
+    counter <- counter + 1
+    ls_eda$trade_t1[i] <- counter
+    sum_ret <- 0
+    count_days <- 0
+  } else {print(c(active, ls_eda$out_t1[i], ls_eda$signal_t1[i], ls_eda$filter_t1[i]))}
+}
+
+end_time <- Sys.time()
+
+end_time - start_time
+```
+
+
+```{r}
+
+ls_eda_df5_t1 <- ls_eda
+save(ls_eda_df5_t1, file = "ls_eda_df5_t1.RData")
+
+```
+
+
+
+# trading t2
+```{r}
+
+start_time <- Sys.time()
+
+f_sd <- 2
+f_beta <- 0
+f_pvalue <- 0.05
+f_correl <- 0.6
+out_signal <- 0.05
+
+# Gera o sinal de entrada
+ls_eda$signal_t2 <- with(ls_eda, ifelse(lag(scale_t2) < f_sd & scale_t2 >= f_sd, 2,
+                                      ifelse(lag(scale_t2) > -f_sd & scale_t2 <= -f_sd, -2, 0)))
+# Gera o filtro de entrada
+ls_eda$filter_t2 <- with(ls_eda, ifelse(beta_t2 > f_beta & pvalue_t2 < f_pvalue & correl_t2 > f_correl, 1, 0))
+
+# Gera o sinal de saída
+ls_eda$out_t2 <- with(ls_eda, ifelse(lag(scale_t2) > out_signal & scale_t2 <= out_signal, 1,
+                                   ifelse(lag(scale_t2) < -out_signal & scale_t2 >= -out_signal, -1, 0)))
+
+# Elimina NA da primeira linha causado pelo lag
+ls_eda$signal_t2[is.na(ls_eda$signal_t2)] <- 0
+ls_eda$out_t2[is.na(ls_eda$out_t2)] <- 0
+
+# em teoria somente a primeira linha pode ser NA
+ls_eda$pos_t2 <- 0
+
+# Define se estou posicionado ou não
+active <- 0
+pos <- 0
+
+for(i in 2:nrow(ls_eda)){
+  # Active = 0 & (Signal = 0 | Filter = 0)
+  if (active == 0 & (ls_eda$signal_t2[i] == 0 | ls_eda$filter_t2[i] == 0)) {
+    ls_eda$pos_t2[i] <- 0
+  # Active = 0 & (Signal = 2 & Filter = 1) & Out = 0
+  } else if (active == 0 & (ls_eda$signal_t2[i] == 2 & ls_eda$filter_t2[i] == 1)) {
+    active <- 1
+    pos <- -1
+    ls_eda$pos_t2[i+1] <- pos
+    # Active = 0 & (Signal = -2 & Filter = 1) & Out = 0
+  } else if (active == 0 & (ls_eda$signal_t2[i] == -2 & ls_eda$filter_t2[i] == 1)) {
+    active <- 1
+    pos <- 1
+    ls_eda$pos_t2[i+1] <- pos
+    # Active = 1 & Out = 0
+  } else if (active == 1 & ls_eda$out_t2[i] == 0) {
+    ls_eda$pos_t2[i] <- pos
+    # Active = 1 & (Signal = 2 & Filter = 1) & Out = 1
+  } else if (active == 1 & (ls_eda$signal_t2[i] == 2 & ls_eda$filter_t2[i] == 1) & ls_eda$out_t2[i] != 0) {
+    pos <- -1
+    ls_eda$pos_t2[i+1] <- pos
+    # Active = 1 & (Signal = -2 & Filter = 1) & Out = 1
+  } else if (active == 1 & (ls_eda$signal_t2[i] == -2 & ls_eda$filter_t2[i] == 1) & ls_eda$out_t2[i] != 0) {
+    pos <- 1
+    ls_eda$pos_t2[i+1] <- pos
+    # Active = 1 & (Signal = 0 & Filter = 0) & Out = 1
+  } else if (active == 1 & (ls_eda$signal_t2[i] == 0 | ls_eda$filter_t2[i] == 0) & ls_eda$out_t2[i] != 0) {
+    active <- 0
+    ls_eda$pos_t2[i] <- pos
+  }
+}
+
+
+# Gera os retornos dos dias posicionados
+ls_eda$return_t2 <- with(ls_eda, ((price_l / lag(price_l)-1) - beta_t2 * (price_r / lag(price_r)-1)) * pos_t2)
+
+# Elimina NA da primeira linha causado pelo lag
+ls_eda$return_t2[is.na(ls_eda$return_t2)] <- 0
+
+# Numerar a posição e o lucro
+ls_eda$trade_t2 <- 0
+ls_eda$sum_ret_t2 <- 0
+ls_eda$open_days_t2 <- 0
+
+active <- 0
+open_line <- 0
+counter <- 0
+count_days <- 0
+sum_ret <- 0
+
+for(i in 1:nrow(ls_eda)){
+  # Active = 0 & Signal = 0
+  if(active == 0 & (ls_eda$signal_t2[i] == 0 | ls_eda$filter_t2[i] == 0)){
+    # Active = 0 & Signal = 1
+  } else if (active == 0 & (ls_eda$signal_t2[i] != 0  & ls_eda$filter_t2[i] != 0)) {
+    active <- 1
+    open_line <- i
+    counter <- counter + 1
+    ls_eda$trade_t2[i] <- counter
+    sum_ret <- 0
+    count_days <- 0
+    # Active = 1 & Out = 0 & Signal = 0
+  } else if (active == 1 & ls_eda$out_t2[i] == 0 & (ls_eda$signal_t2[i] == 0 | ls_eda$filter_t2[i] == 0)) {
+    sum_ret <- sum_ret + ls_eda$return_t2[i]
+    count_days <- count_days + 1
+    # Active = 1 & Out = 0 & Signal = 1
+  } else if(active == 1 & ls_eda$out_t2[i] == 0 & (ls_eda$signal_t2[i] != 0 & ls_eda$filter_t2[i] != 0)) {
+    sum_ret <- sum_ret + ls_eda$return_t2[i]
+    count_days <- count_days + 1
+    # Active = 1 & Out = 1 & Signal = 0
+  } else if (active == 1 & ls_eda$out_t2[i] != 0 & (ls_eda$signal_t2[i] == 0 | ls_eda$filter_t2[i] == 0)) {
+    sum_ret <- sum_ret + ls_eda$return_t2[i]
+    count_days <- count_days + 1
+    ls_eda$sum_ret_t2[open_line] <- sum_ret
+    ls_eda$open_days_t2[open_line] <- count_days
+    sum_ret <- 0
+    count_days <- 0
+    active <- 0
+    # Active = 1 & Out = 1 & Signal = 1
+  } else if(active == 1 & ls_eda$out_t2[i] != 0 & (ls_eda$signal_t2[i] != 0 & ls_eda$filter_t2[i] != 0)) {
+    sum_ret <- sum_ret + ls_eda$return_t2[i]
+    count_days <- count_days + 1
+    ls_eda$sum_ret_t2[open_line] <- sum_ret
+    ls_eda$open_days_t2[open_line] <- count_days
+    open_line <- i
+    counter <- counter + 1
+    ls_eda$trade_t2[i] <- counter
+    sum_ret <- 0
+    count_days <- 0
+  } else {print(c(active, ls_eda$out_t2[i], ls_eda$signal_t2[i], ls_eda$filter_t2[i]))}
+}
+
+end_time <- Sys.time()
+
+end_time - start_time
+
+```
+
+```{r}
+ls_eda_df5_t2 <- ls_eda 
+save(ls_eda_df5_t2, file = "ls_eda_df5_t2.RData")
+```
+
+
+
+# trading t3
+```{r}
+
+start_time <- Sys.time()
+
+f_sd <- 2
+f_beta <- 0
+f_pvalue <- 0.05
+f_correl <- 0.6
+out_signal <- 0.05
+
+# Gera o sinal de entrada
+ls_eda$signal_t3 <- with(ls_eda, ifelse(lag(scale_t3) < f_sd & scale_t3 >= f_sd, 2,
+                                      ifelse(lag(scale_t3) > -f_sd & scale_t3 <= -f_sd, -2, 0)))
+# Gera o filtro de entrada
+ls_eda$filter_t3 <- with(ls_eda, ifelse(beta_t3 > f_beta & pvalue_t3 < f_pvalue & correl_t3 > f_correl, 1, 0))
+
+# Gera o sinal de saída
+ls_eda$out_t3 <- with(ls_eda, ifelse(lag(scale_t3) > out_signal & scale_t3 <= out_signal, 1,
+                                   ifelse(lag(scale_t3) < -out_signal & scale_t3 >= -out_signal, -1, 0)))
+
+# Elimina NA da primeira linha causado pelo lag
+ls_eda$signal_t3[is.na(ls_eda$signal_t3)] <- 0
+ls_eda$out_t3[is.na(ls_eda$out_t3)] <- 0
+
+# em teoria somente a primeira linha pode ser NA
+ls_eda$pos_t3 <- 0
+
+# Define se estou posicionado ou não
+active <- 0
+pos <- 0
+
+for(i in 2:nrow(ls_eda)){
+  # Active = 0 & (Signal = 0 | Filter = 0)
+  if (active == 0 & (ls_eda$signal_t3[i] == 0 | ls_eda$filter_t3[i] == 0)) {
+    ls_eda$pos_t3[i] <- 0
+  # Active = 0 & (Signal = 2 & Filter = 1) & Out = 0
+  } else if (active == 0 & (ls_eda$signal_t3[i] == 2 & ls_eda$filter_t3[i] == 1)) {
+    active <- 1
+    pos <- -1
+    ls_eda$pos_t3[i+1] <- pos
+    # Active = 0 & (Signal = -2 & Filter = 1) & Out = 0
+  } else if (active == 0 & (ls_eda$signal_t3[i] == -2 & ls_eda$filter_t3[i] == 1)) {
+    active <- 1
+    pos <- 1
+    ls_eda$pos_t3[i+1] <- pos
+    # Active = 1 & Out = 0
+  } else if (active == 1 & ls_eda$out_t3[i] == 0) {
+    ls_eda$pos_t3[i] <- pos
+    # Active = 1 & (Signal = 2 & Filter = 1) & Out = 1
+  } else if (active == 1 & (ls_eda$signal_t3[i] == 2 & ls_eda$filter_t3[i] == 1) & ls_eda$out_t3[i] != 0) {
+    pos <- -1
+    ls_eda$pos_t3[i+1] <- pos
+    # Active = 1 & (Signal = -2 & Filter = 1) & Out = 1
+  } else if (active == 1 & (ls_eda$signal_t3[i] == -2 & ls_eda$filter_t3[i] == 1) & ls_eda$out_t3[i] != 0) {
+    pos <- 1
+    ls_eda$pos_t3[i+1] <- pos
+    # Active = 1 & (Signal = 0 & Filter = 0) & Out = 1
+  } else if (active == 1 & (ls_eda$signal_t3[i] == 0 | ls_eda$filter_t3[i] == 0) & ls_eda$out_t3[i] != 0) {
+    active <- 0
+    ls_eda$pos_t3[i] <- pos
+  }
+}
+
+
+# Gera os retornos dos dias posicionados
+ls_eda$return_t3 <- with(ls_eda, ((price_l / lag(price_l)-1) - beta_t3 * (price_r / lag(price_r)-1)) * pos_t3)
+
+# Elimina NA da primeira linha causado pelo lag
+ls_eda$return_t3[is.na(ls_eda$return_t3)] <- 0
+
+# Numerar a posição e o lucro
+ls_eda$trade_t3 <- 0
+ls_eda$sum_ret_t3 <- 0
+ls_eda$open_days_t3 <- 0
+
+active <- 0
+open_line <- 0
+counter <- 0
+count_days <- 0
+sum_ret <- 0
+
+for(i in 1:nrow(ls_eda)){
+  # Active = 0 & Signal = 0
+  if(active == 0 & (ls_eda$signal_t3[i] == 0 | ls_eda$filter_t3[i] == 0)){
+    # Active = 0 & Signal = 1
+  } else if (active == 0 & (ls_eda$signal_t3[i] != 0  & ls_eda$filter_t3[i] != 0)) {
+    active <- 1
+    open_line <- i
+    counter <- counter + 1
+    ls_eda$trade_t3[i] <- counter
+    sum_ret <- 0
+    count_days <- 0
+    # Active = 1 & Out = 0 & Signal = 0
+  } else if (active == 1 & ls_eda$out_t3[i] == 0 & (ls_eda$signal_t3[i] == 0 | ls_eda$filter_t3[i] == 0)) {
+    sum_ret <- sum_ret + ls_eda$return_t3[i]
+    count_days <- count_days + 1
+    # Active = 1 & Out = 0 & Signal = 1
+  } else if(active == 1 & ls_eda$out_t3[i] == 0 & (ls_eda$signal_t3[i] != 0 & ls_eda$filter_t3[i] != 0)) {
+    sum_ret <- sum_ret + ls_eda$return_t3[i]
+    count_days <- count_days + 1
+    # Active = 1 & Out = 1 & Signal = 0
+  } else if (active == 1 & ls_eda$out_t3[i] != 0 & (ls_eda$signal_t3[i] == 0 | ls_eda$filter_t3[i] == 0)) {
+    sum_ret <- sum_ret + ls_eda$return_t3[i]
+    count_days <- count_days + 1
+    ls_eda$sum_ret_t3[open_line] <- sum_ret
+    ls_eda$open_days_t3[open_line] <- count_days
+    sum_ret <- 0
+    count_days <- 0
+    active <- 0
+    # Active = 1 & Out = 1 & Signal = 1
+  } else if(active == 1 & ls_eda$out_t3[i] != 0 & (ls_eda$signal_t3[i] != 0 & ls_eda$filter_t3[i] != 0)) {
+    sum_ret <- sum_ret + ls_eda$return_t3[i]
+    count_days <- count_days + 1
+    ls_eda$sum_ret_t3[open_line] <- sum_ret
+    ls_eda$open_days_t3[open_line] <- count_days
+    open_line <- i
+    counter <- counter + 1
+    ls_eda$trade_t3[i] <- counter
+    sum_ret <- 0
+    count_days <- 0
+  } else {print(c(active, ls_eda$out_t3[i], ls_eda$signal_t3[i], ls_eda$filter_t3[i]))}
+}
+
+end_time <- Sys.time()
+
+end_time - start_time
+
+```
+
+
+
+```{r}
+ls_eda_df5_t3 <- ls_eda 
+save(ls_eda_df5_t3, file = "ls_eda_df5_t3.RData")
+
+```
+
+
+
+```{r}
+# carrega dados
+load("abt_combina.RData")
+
+# Combinação das empresas com relações econômicas
+econ_rel <- data.frame(left_side = c("BBDC3", "BBDC4", "ITUB3", "ITUB4", "LAME3", "LAME4", "PETR3", "PETR4",
+                                    "GGBR4", "GOAU4","ITSA4", "ITUB3", "ITSA4", "ITUB4", "BRAP4", "VALE3"),
+                       right_side = c("BBDC4", "BBDC3", "ITUB4", "ITUB3", "LAME4", "LAME3", "PETR4", "PETR3",
+                                    "GOAU4", "GGBR4", "ITUB3", "ITSA4", "ITUB4", "ITSA4", "VALE3", "BRAP4"),
+                       econ_rel = c(1))
+```
+
+
+
+
+# classificando e analisando as combinações
+```{r}
+df_eda <- left_join(combina, econ_rel) # classifica se há relação econômica
+
+# join dos dados de combina com abt_alvo para os 2 tickers de cada linha
+df_eda <- left_join(left_join(df_eda, abt_alvo,  by = c("left_side" = "ticker")), abt_alvo,  by = c("right_side" = "ticker"))
+
+df_eda <- df_eda[,-c(4:8, 10, 14:21, 23, 27:29)] %>% mutate(across(where(is.factor), as.character)) %>%
+  mutate(
+    MCap_Classe = ifelse(MCap_Classe.x == MCap_Classe.y, MCap_Classe.x, "Diff"),
+    Setor = ifelse(Setor.x == Setor.y, Setor.x, "Diff"),
+    Subsetor = ifelse(Subsetor.x == Subsetor.y, Subsetor.x, "Diff"),
+    Segmento = ifelse(Segmento.x == Segmento.y, Segmento.x, "Diff")) %>% 
+  select(-c(4:11))
+
+df_eda[is.na(df_eda)] <- 0 # substitui NA por 0 em df_p3
+
+df_eda <- cbind(df_eda,
+               df_eda %>% summarise(across(c(MCap_Classe,Setor, Subsetor, Segmento), ~.x == "Diff")) %>% 
+                 mutate("Diffs" = rowSums(.)) %>% select(5))
+
+```
+
+
+
+# juntando df com df_eda
+```{r}
+ls_eda <- left_join(df, df_eda)
+
+#write_csv(ls_eda, "ls_eda.csv")
+
+```
+
+
+
+
+```{r}
+ ls_eda %>% filter(left_side == "EZTC3", right_side == "YDUQ3") %>% 
+  ggplot(aes(x = price_l, y = price_r)) +
+ geom_point(size = 1L, colour = "#0c4c8a") +
+ stat_smooth(method = "lm", col = "red")+
+ theme_classic()
+```
+
+
+
+
+```{r}
+teste <- ls_eda %>% filter(left_side == "CESP6", right_side == "YDUQ3") %>% 
+  select (1,13:14, 20:21, 27:28, 38:40)
+
+cbind(teste[1:3,], lag(teste[1:3,]))
+
+teste <- teste %>% pivot_longer(cols = c(2:4), values_to = "spread")
+
+
+teste %>% filter (half_t2 < 200, half_t2 > 0) %>% 
+ggplot() +
+ geom_point( aes(x = day, y = half_t2/10, colour = name) ) +
+ geom_line( aes(x = day, y = scale_t2, colour = name) ) +
+ scale_color_hue() +
+ scale_y_continuous(sec.axis = sec_axis(~ . * 10)) +
+ theme_minimal()
+
+colnames( ls_eda)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

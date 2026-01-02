@@ -1,0 +1,7 @@
+"0","#sum(duplicated(df)) # check for duplicates
+n_distinct(df) # check for uniques
+"
+"1","[1]"
+"1"," 8827920"
+"1","
+"

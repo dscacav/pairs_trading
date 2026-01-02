@@ -1,0 +1,550 @@
+
+TCC
+
+```{r, message = FALSE}
+library(quantmod)
+library('PerformanceAnalytics')
+library(tidyverse)
+library(lubridate)
+library(xlsx)
+library(esquisse)
+library(rtf)
+
+
+```
+
+# Data
+
+## Stocks Quote
+```{r}
+rm(list=ls())
+
+# 3 símbolos para teste
+#simbolos = read.csv('ds_tickers.csv', sep = ";")
+#names(simbolos) = c("simbolo", "nome")
+
+# Todos os símbolos
+simbolos = read.csv('ds_tickers_yahoo.csv', sep = ";")
+names(simbolos) = c("simbolo", "ticker", "nome")
+
+for (simbolo in simbolos$simbolo) {
+  if (simbolo %in% ls()) {
+    print(paste0(simbolo, ' já existe'))
+  } else {try(getSymbols(simbolo, from="2018-01-01", to="2021-06-05"))}
+}
+
+lista = vector()
+
+for (simbolo in ls()) {
+  if (class(get(simbolo))[1] == "xts") {
+    lista = c(lista, simbolo)
+  }
+}
+
+close <- Cl(get("BVSP"))
+colnames(close) <- gsub(".Close", "", colnames(close))
+
+adjus <- Ad(get("BVSP"))
+colnames(adjus) <- gsub(".Adjusted", "", colnames(adjus))
+
+rm(BVSP) # rm(list = lista[1]) # Caso tenha que apagar por nome da variável
+lista <- lista[-which(lista == "BVSP")]
+
+for (simbolo in lista) {
+  temp_cl <- Cl(get(simbolo))
+  colnames(temp_cl) <- gsub(".SA.Close", "", colnames(temp_cl))
+  close <- cbind(close, temp_cl)
+  
+  temp_ad <- Ad(get(simbolo))
+  colnames(temp_ad) <- gsub(".SA.Adjusted", "", colnames(temp_ad))
+  adjus <- cbind(adjus, temp_ad)
+  
+  rm(list = simbolo)
+  rm(temp_cl, temp_ad)
+}
+
+# Renomear o USDBRL que não segue o padrão das ações
+#names(adjus)[names(adjus) == "USDBRL.X.Adjusted"] <- "USDBRL"
+#names(close)[names(close) == "USDBRL.X.Close"] <- "USDBRL"
+
+rm(lista, simbolo)
+
+```
+
+## Importing Status / B3
+```{r}
+# Status Invest
+status <- read_csv2('ds_status.csv')
+# B3
+setor <- read_csv2('ds_setor.csv')
+```
+
+## abt
+```{r}
+# Criação da abt completa
+abt <- left_join(simbolos, status, by = c("ticker" = "Ticker"))
+
+# Classificação por Market Cap
+abt <- abt %>%
+  mutate(MCap_Classe = case_when(is.na(Market_Cap) ~ 'Nao_Disp',
+                            Market_Cap < 50e6  ~ 'Nano',
+                            Market_Cap >= 50e6  & Market_Cap < 300e6 ~ 'Micro',
+                            Market_Cap >= 300e6  & Market_Cap < 2000e6 ~ 'Small',
+                            Market_Cap >= 2000e6  & Market_Cap < 10000e6 ~ 'Mid',
+                            Market_Cap >= 10000e6  & Market_Cap < 200000e6 ~ 'Large',
+                            Market_Cap >= 200000e6 ~ 'Mega'))
+
+abt$MCap_Classe <- factor(abt$MCap_Classe, levels = c('Nao_Disp', 'Nano', 'Micro','Small','Mid','Large','Mega'))
+
+# Classificação por Liquidez
+abt <- abt %>%
+  mutate(Liq_Classe = case_when(is.na(Liq_Med_Diaria) ~ 'Nao_Disp',
+                              Liq_Med_Diaria >= 0  & Liq_Med_Diaria < 250e3 ~ 'Ate_250',
+                              Liq_Med_Diaria >= 250e3  & Liq_Med_Diaria < 500e3 ~ 'De_250_500',
+                              Liq_Med_Diaria >= 500e3  & Liq_Med_Diaria < 1000e3 ~ 'De_500_1M',
+                              Liq_Med_Diaria >= 1000e3  & Liq_Med_Diaria < 3000e3 ~ 'De_1M_3M',
+                              Liq_Med_Diaria >= 3000e3  & Liq_Med_Diaria < 15000e3 ~ 'De_3M_15M',
+                              Liq_Med_Diaria >= 15000e3 ~ 'Acima_15M'))
+
+abt$Liq_Classe <- factor(abt$Liq_Classe, levels = c('Nao_Disp', 'Ate_250','De_250_500',
+                                                    'De_500_1M', 'De_1M_3M', 'De_3M_15M', 'Acima_15M'))
+
+# Join abt com setor
+abt <- left_join(abt, setor, by = c("nome" = "Codigo"))
+
+abt <- abt %>% filter(ticker != "Ibov" & ticker != "Dolar")  # removendo o dólar e o ibov da lista de ações
+
+# Criação da abt alvo (filtros)
+abt_alvo <- abt %>% filter(Liq_Med_Diaria >= 250e3 & Preco >= 2)
+
+```
+
+
+## Ações histórico completo
+As ações sem histórico completo foram excluída das análises
+
+```{r}
+# remove as colunas incompletas, NAs
+adjus_f <- adjus[,-which(colSums(is.na(adjus)) > 53)]
+close_f <- close[,-which(colSums(is.na(close)) > 53)]
+
+# remove as linhas incompletas, NAs
+adjus_f <- adjus_f[-which(rowSums(is.na(adjus_f)) > 400),]
+close_f <- close_f[-which(rowSums(is.na(close_f)) > 400),]
+
+# remove algumas columas incomplestas que sobraram, NA
+# tinham dado, onde não deveria
+adjus_f <- adjus_f[,-which(colSums(is.na(adjus_f)) > 0)]
+close_f <- close_f[,-which(colSums(is.na(close_f)) > 0)]
+
+# Check point
+check <- as_tibble(cbind(year(index(adjus_f)), month(index(adjus_f)))) %>% count(V1, V2)
+check <- check %>% pivot_wider(names_from = V1, values_from = n)
+rm(check)
+
+# Remove os tickers que não tem histórico completo no Yahoo
+# Filtra ações com Liquidez acima de 15M
+abt_alvo <- abt_alvo %>% filter((ticker %in% colnames(adjus_f)) & (Liq_Classe == "Acima_15M"))
+```
+
+## Cálculo dos Returnos
+
+```{r}
+# Filtro com as ações alvo
+adjus_f <- adjus_f[,c(abt_alvo$ticker)]
+close_f <- close_f[,c(abt_alvo$ticker)]
+
+adjus_f_ret <- lapply(adjus_f, MARGIN = 2, FUN = dailyReturn)
+adjus_f_ret <- do.call(cbind, adjus_f_ret)
+names(adjus_f_ret) <- names(adjus_f)
+
+close_f_ret <- lapply(close_f, MARGIN = 2, FUN = dailyReturn)
+close_f_ret <- do.call(cbind, close_f_ret)
+names(close_f_ret) <- names(close_f)
+
+```
+
+## Export Stocks RData
+```{r}
+#save(list = ls(), file = "data.RData")
+#load("data.RData")
+```
+
+# 2a Entrega - Medidas Resumo
+
+## Os desafios da bolsa
+
+### Série Histórica
+
+```{r}
+par(mfrow = c(2, 1))
+
+chart.TimeSeries(BVSP, main="Cotação do IBOV", grid.color	= "white", colorset = "black")
+
+chart.CumReturns(BVSP_ret,wealth.index=TRUE, col="red",main="Retorno Acumulado do IBOV",
+                 grid.color	= "white")
+```
+
+### Retornos no Tempo
+
+```{r}
+BVSP <- na.omit(adjus$BVSP)
+BVSP_ret <- dailyReturn(BVSP,type='arithmetic')
+
+plot(BVSP_ret, col='red', main= "Retornos no Tempo", grid.col = FALSE)
+```
+### Histograma dos Retornos
+
+```{r}
+hist(BVSP_ret, col= "red", border="white", freq = TRUE, breaks = 100,
+     main="Distribuição dos Retornos", ylab = 'Frequência', xlab="Retornos")
+```
+
+### 5 Maiores e menores retornos diários do Índice
+```{r}
+as_tibble(BVSP_ret) %>% 
+  filter(min_rank(desc(daily.returns)) <= 5 | min_rank(daily.returns) <= 5) %>%
+  arrange(daily.returns) %>% transmute('Ranking_Retornos' = daily.returns * 100) %>% round(2)
+```
+Exportando a tabela acima
+```{r}
+rtffile <- RTF("rtf.doc")  # this can be an .rtf or a .doc
+addParagraph(rtffile, "5 Maiores e menores retornos diários do Índice\n")
+addTable(rtffile, as_tibble(BVSP_ret) %>% 
+  filter(min_rank(desc(daily.returns)) <= 5 | min_rank(daily.returns) <= 5) %>%
+  arrange(daily.returns) %>% transmute('Ranking_Retornos' = daily.returns * 100) %>% round(2))
+done(rtffile)
+```
+
+## Volatilidade
+
+### Volatilidade Anualizada da Bolsa
+
+```{r}
+sqrt(252) * sd(BVSP_ret["2018"]) # 2018
+sqrt(252) * sd(BVSP_ret["2019"]) # 2019
+sqrt(252) * sd(BVSP_ret["2020"]) # 2020
+sqrt(252) * sd(BVSP_ret["2021"]) # 2021
+```
+
+### Volatilidade Mensal da Bolsa
+
+```{r}
+# Compute the rolling 1 month estimate of annualized volatility
+chart.RollingPerformance(R = BVSP_ret, width = 22, colorset = "red", grid.color	= "white",
+                         FUN = "sd.annualized", scale = 252, main = "Vol anual rolante")
+```
+
+## Métricas (B3)
+
+### Missing
+
+Na base de dados do Yahoo possui aproximadamente 18% de observações faltantes, incluindo dias completos em função de feriados.
+
+Desta forma estas linhas foram removidas juntamente com os tickers com dados incompletos.
+
+```{r}
+Amelia::missmap(adjus, main = "Análise de Missing", x.cex = 0.01, col=c("gray90", "red"))
+```
+
+### Quantidade de ações pós filtros
+
+Em função dos dados e da natureza da operação Long & Short, vamos manter somente as ações com:
+- histórico de dados completo
+- empresas com liquidez média diária acima de 15 milhões, excluindo abaixo ou não disponível
+
+Métricas pré e pós filtros
+```{r}
+# Pré filtro
+length(unique(abt$nome)) # número de empresas na bolsa
+length(unique(abt$ticker)) # número de tickers
+
+# Pós filtro (NAs e Liquidez)
+length(unique(abt_alvo$nome)) # número de empresas na bolsa com filtros
+length(unique(abt_alvo$ticker)) # total de tickers completos e > 15M de liquidez
+```
+
+```{r}
+min(abt$Preco)
+max(abt$Preco)
+```
+
+
+Métrica de Setores
+```{r}
+left_join(abt %>% count(Setor, name = "n_todos"),
+          abt_alvo %>% count(Setor, name = "n_filtro"),
+          by = c("Setor"))
+```
+
+Métrica de Subsetores
+```{r}
+left_join(abt %>% count(Subsetor, name = "n_todos"),
+          abt_alvo %>% count(Subsetor, name = "n_filtro"),
+          by = c("Subsetor"))
+```
+Métrica de Liquidez
+```{r}
+left_join(abt %>% count(MCap_Classe, name = "n_todos"),
+          abt_alvo %>% count(MCap_Classe, name = "n_filtro"),
+          by = c("MCap_Classe"))
+```
+Métrica de Liquidez
+```{r}
+left_join(abt %>% count(Liq_Classe, name = "n_todos"),
+          abt_alvo %>% count(Liq_Classe, name = "n_filtro"),
+          by = c("Liq_Classe"))
+```
+
+### Liquidez por Market Cap
+
+#### Pré filtro
+
+```{r}
+ggplot(abt %>% filter(Liq_Med_Diaria != "Nao_disp")) +
+ aes(x = MCap_Classe, y = Liq_Med_Diaria, fill = MCap_Classe) +
+ geom_boxplot() +
+ scale_fill_hue() +
+ labs(x = "Market Cap Classificação", y = "Liquidez Média Diária", title = "Boxplot - Liquidez Média Diária",
+      subtitle = "Por Market Cap Classificação") +
+ theme_classic() +
+ theme(legend.position = "none")
+```
+
+#### Pós filtro
+
+```{r}
+ggplot(abt_alvo) +
+ aes(x = MCap_Classe, y = Liq_Med_Diaria, fill = MCap_Classe) +
+ geom_boxplot() +
+ scale_fill_hue() +
+ labs(x = "Market Cap Classificação",
+      y = "Liquidez Média Diária", title = "Boxplot - Liquidez Média Diária superior a 15 milhões",
+      subtitle = "Por Market Cap Classificação") +
+ theme_classic() +
+ theme(legend.position = "none")
+```
+
+### Market Cap por Liquidez
+
+#### Pré filtro
+
+```{r}
+ggplot(abt) +
+ aes(x = MCap_Classe, fill = Liq_Classe) +
+ geom_bar() +
+ scale_fill_hue() +
+ labs(title = "Distribuição das Empresas por Market Cap", subtitle = "Sub-classificação por Liquidez", fill = "Liquidez",
+      x = "Market Cap Classificação", y = "Quantidade") +
+ theme_classic()
+```
+
+#### Pós filtro
+
+```{r}
+ggplot(abt_alvo) +
+ aes(x = MCap_Classe, fill = MCap_Classe) +
+ geom_bar() +
+ scale_fill_hue() +
+ labs(title = "Distribuição das Empresas por Market Cap",
+      subtitle = "Liquidez superior a 15 milhões", fill = "Liquidez",
+      x = "Market Cap Classificação", y = "Quantidade") +
+ theme_classic() +
+  theme(legend.position = "none")
+```
+
+### Market Cap Por Setor
+
+Existem ações com alto valor de mercado em praticamente todos os setores
+
+#### Pré filtro
+
+```{r}
+ggplot(abt) +
+ aes(x = Setor, fill = MCap_Classe) +
+ geom_bar() +
+ scale_fill_hue() +
+ labs(x = "Setor", y = "Quantidade", title = "Market Cap por Setor", fill = "Market Cap Classificação") +
+ theme_classic() +
+ coord_flip() +
+ theme(legend.position = "bottom")
+```
+
+#### Pós filtro
+
+Existem ações com alto valor de mercado em praticamente todos os setores
+
+```{r}
+ggplot(abt_alvo) +
+ aes(x = Setor, fill = MCap_Classe) +
+ geom_bar() +
+ scale_fill_hue() +
+ labs(x = "Setor", y = "Quantidade", title = "Market Cap por Setor",
+      subtitle = "Liquidez superior a 15 milhões", fill = "Liquidez", fill = "Market Cap Classificação") +
+ theme_classic() +
+ coord_flip() +
+ theme(legend.position = "bottom")
+```
+
+### Liquidez por Setor
+
+#### Pós filtro
+
+Existem ações com muita liquidez em praticamente todos os setores
+
+```{r}
+# Dar zoom que os labels do eixo X se ajustam
+ggplot(abt) +
+ aes(x = Setor, fill = Liq_Classe) +
+ geom_bar() +
+ scale_fill_hue() +
+ labs(x = "Setor", y = "Quantidade", title = "Liquidez por Setor", fill = "Liquidez Média Diária") +
+ theme_classic() +
+ coord_flip() +
+ theme(legend.position = "bottom")
+```
+
+#### Pós filtro
+
+Existem ações com muita liquidez em praticamente todos os setores
+
+```{r}
+# Dar zoom que os labels do eixo X se ajustam
+ggplot(abt_alvo) +
+ aes(x = Setor, fill = Setor) +
+ geom_bar() +
+ scale_fill_hue() +
+ labs(x = "Setor", y = "Quantidade", title = "Liquidez superior a 15 milhões por Setor", fill = "Liquidez Média Diária") +
+ theme_classic() +
+ coord_flip() +
+ theme(legend.position = "none")
+```
+
+
+## Análise diversas
+
+### Retorno Acumulado das Ações da Bolsa  (abt_alvo)
+
+É possível verificar que as ações são bastante relacionadas dados aos movimentos semelhantes.
+
+O que será analisados na próxima entrega é se existe uma relação mais profunda entre as ações
+
+```{r}
+chart.CumReturns(adjus_f_ret,wealth.index=TRUE, main="Retorno Acumulado")
+
+```
+
+### Correlação entre as ações
+
+```{r}
+ggplot(data = reshape2::melt(cor(adjus_f_ret)), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile()+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank())
+```
+
+### Combinações
+
+```{r}
+length(unique(abt_alvo$ticker)) # Número total de tickers
+nrow(expand.grid(abt_alvo$ticker, abt_alvo$ticker) %>% filter((Var1==Var2) < 1 )) # combinações possíveis
+
+```
+
+### Relações Econômicas
+
+```{r}
+abt_alvo %>% count(nome, sort = TRUE)  %>% filter(n > 1)
+```
+
+```{r}
+abt_alvo %>% count(Setor, sort = TRUE)
+```
+
+```{r}
+abt_alvo %>% group_by(Setor) %>% count(Subsetor, sort = TRUE) %>% filter(n > 1)
+```
+
+```{r}
+abt_alvo %>% group_by(Setor, Subsetor) %>% count(Segmento, sort = TRUE) %>% filter(n > 1)
+```
+
+Exportando Tabelas
+
+```{r}
+rtffile <- RTF("rtf.doc")  # this can be an .rtf or a .doc
+
+#addParagraph(rtffile, "Tickers Pares \n")
+#addTable(rtffile, abt_alvo %>% count(nome, sort = TRUE)  %>% filter(n > 1))
+
+#addParagraph(rtffile, "\n\nQuantidade de Empresas por Setor\n")
+#addTable(rtffile, abt_alvo %>% count(Setor, sort = TRUE))
+
+#addParagraph(rtffile, "\n\nQuantidade de Empresas por Subsetor\n")
+#addTable(rtffile, abt_alvo %>% group_by(Setor) %>% count(Subsetor, sort = TRUE) %>% filter(n > 1))
+
+addParagraph(rtffile, "\n\nQuantidade de Empresas por Segmento\n")
+addTable(rtffile, abt_alvo %>% group_by(Setor, Subsetor) %>% count(Segmento, sort = TRUE) %>% filter(n > 1))
+
+done(rtffile)
+```
+
+
+# Pairs
+
+```{r}
+chart.TimeSeries(cbind(adjus$ITUB3, adjus_f$ITUB4), grid.color = "white")
+
+```
+
+```{r}
+ggplot(as_tibble(cbind(adjus_f$ITUB3, adjus_f$ITUB4)) %>% drop_na()) +
+ aes(x = ITUB3, y = ITUB4) +
+ geom_point(size = 1L, colour = "#0c4c8a") +
+ labs(x = "ITUB3", y = "ITUB4", title = "Scatter Plot", subtitle = "Regressão Linear ITUB4 ~ ITUB3") +
+ stat_smooth(method = "lm", col = "red")+
+ theme_classic()
+
+```
+
+```{r}
+ggplot(as_tibble(cbind(adjus_f$BBDC3, adjus_f$BBDC4)) %>% drop_na()) +
+ aes(x = BBDC3, y = BBDC4) +
+ geom_point(size = 1L, colour = "#0c4c8a") +
+ labs(x = "BBDC3", y = "BBDC4", title = "Scatter Plot", subtitle = "Regressão Linear ITUB4 ~ ITUB3") +
+ stat_smooth(method = "lm", col = "red")+
+ theme_classic()
+
+```
+
+```{r}
+cor(adjus_f$ITUB3, adjus_f$ITUB4)
+```
+
+
+```{r}
+
+reshape2::melt(cor(adjus_f_ret)) %>% filter(value < 1) %>% arrange(desc(value))
+
+```
+
+
+```{r}
+# este código gera o grid combinatorio e salva junto com a abt_alvo
+combina <- expand.grid(abt_alvo$ticker, abt_alvo$ticker) %>% filter((Var1==Var2) < 1 )
+
+combina$left_side <- as.character(combina$Var2)
+combina$right_side <- as.character(combina$Var1)
+
+combina$Var1 <- NULL
+combina$Var2 <- NULL
+
+save(list = c('combina', 'abt_alvo'), file = "abt_combina.RData")
+```
+
+
+

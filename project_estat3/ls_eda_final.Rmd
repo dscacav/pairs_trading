@@ -1,0 +1,196 @@
+
+```{r, message=FALSE}
+library(tidyverse)
+library(tseries)
+library(quantmod)
+library(esquisse)
+```
+
+
+```{r}
+load("ls_eda_df1_t1.RData")
+load("ls_eda_df1_t2.RData")
+load("ls_eda_df1_t3.RData")
+
+ls_eda_df1 <- left_join(ls_eda_df1_t1, ls_eda_df1_t2)
+ls_eda_df1 <- left_join(ls_eda_df1, ls_eda_df1_t3)
+rm(ls_eda_df1_t1, ls_eda_df1_t2, ls_eda_df1_t3)
+
+load("ls_eda_df2_t1.RData")
+load("ls_eda_df2_t2.RData")
+load("ls_eda_df2_t3.RData")
+
+ls_eda_df2 <- left_join(ls_eda_df2_t1, ls_eda_df2_t2)
+ls_eda_df2 <- left_join(ls_eda_df2, ls_eda_df2_t3)
+rm(ls_eda_df2_t1, ls_eda_df2_t2, ls_eda_df2_t3)
+
+load("ls_eda_df3_t1.RData")
+load("ls_eda_df3_t2.RData")
+load("ls_eda_df3_t3.RData")
+
+ls_eda_df3 <- left_join(ls_eda_df3_t1, ls_eda_df3_t2)
+ls_eda_df3 <- left_join(ls_eda_df3, ls_eda_df3_t3)
+rm(ls_eda_df3_t1, ls_eda_df3_t2, ls_eda_df3_t3)
+
+load("ls_eda_df4_t1.RData")
+load("ls_eda_df4_t2.RData")
+load("ls_eda_df4_t3.RData")
+
+ls_eda_df4 <- left_join(ls_eda_df4_t1, ls_eda_df4_t2)
+ls_eda_df4 <- left_join(ls_eda_df4, ls_eda_df4_t3)
+rm(ls_eda_df4_t1, ls_eda_df4_t2, ls_eda_df4_t3)
+
+
+load("ls_eda_df5_t1.RData")
+load("ls_eda_df5_t2.RData")
+load("ls_eda_df5_t3.RData")
+
+ls_eda_df5 <- left_join(ls_eda_df5_t1, ls_eda_df5_t2)
+ls_eda_df5 <- left_join(ls_eda_df5, ls_eda_df5_t3)
+rm(ls_eda_df5_t1, ls_eda_df5_t2, ls_eda_df5_t3)
+
+ls_eda_final <- rbind(ls_eda_df1, ls_eda_df2)
+ls_eda_final <- rbind(ls_eda_final, ls_eda_df3)
+ls_eda_final <- rbind(ls_eda_final, ls_eda_df4)
+ls_eda_final <- rbind(ls_eda_final, ls_eda_df5)
+
+rm(ls_eda_df1, ls_eda_df2, ls_eda_df3, ls_eda_df4, ls_eda_df5)
+
+```
+
+
+```{r}
+
+# validação da base
+#ls_eda_final %>% group_by(day, left_side, right_side) %>% count(day) %>%  group_by(n) %>% count(n)
+# número 1	8827920	vezes
+# não precisa rodar novamente
+
+```
+
+```{r}
+ls_eda_t1 <- ls_eda_final %>% filter(open_days_t1 != 0) %>% select(1:22) %>% select(-15:-20)
+ls_eda_t2 <- ls_eda_final %>% filter(open_days_t2 != 0) %>% select(1:5, 23:39) %>% select(-15:-20)
+ls_eda_t3 <- ls_eda_final %>% filter(open_days_t3 != 0) %>% select(1:5, 40:56) %>% select(-15:-20)
+
+#ls_eda_all <- ls_eda_final %>% filter(open_days_t1 != 0 | open_days_t2 != 0 | open_days_t3 != 0) %>%
+#  select(-15:-20, -32:-37, -49:-54)
+
+# Removendo as operações que não foram encerradas e removendo lucros ou prejuízos acima de 20%
+ls_eda_t1$last_day_t1 <- ls_eda_t1$day + round((ls_eda_t1$open_days_t1/5*2)+ls_eda_t1$open_days_t1, 0)
+ls_eda_t1$decision <- ifelse(ls_eda_t1$last_day_t1 > '2021-05-15', 'remove', 'keep')
+ls_eda_t1 <- ls_eda_t1 %>% filter(decision != 'remove') %>% select(-18) %>%
+  mutate(stop_ret_t1= ifelse(sum_ret_t1 >= .2,.2,ifelse(sum_ret_t1 <= -.2,-.2,sum_ret_t1)),
+         result_t1 = ifelse(sum_ret_t1 >= 0, 'Lucro', 'Perda'))
+
+ls_eda_t2$last_day_t2 <- ls_eda_t2$day + round((ls_eda_t2$open_days_t2/5*2)+ls_eda_t2$open_days_t2, 0)
+ls_eda_t2$decision <- ifelse(ls_eda_t2$last_day_t2 > '2021-05-15', 'remove', 'keep')
+ls_eda_t2 <- ls_eda_t2 %>% filter(decision != 'remove') %>% select(-18) %>%
+  mutate(stop_ret_t2 = ifelse(sum_ret_t2 >= .2,.2,ifelse(sum_ret_t2 <= -.2,-.2,sum_ret_t2)),
+         result_t2 = ifelse(sum_ret_t2 >= 0, 'Lucro', 'Perda'))
+
+ls_eda_t3$last_day_t3 <- ls_eda_t3$day + round((ls_eda_t3$open_days_t3/5*2)+ls_eda_t3$open_days_t3, 0)
+ls_eda_t3$decision <- ifelse(ls_eda_t3$last_day_t3 > '2021-05-15', 'remove', 'keep')
+ls_eda_t3 <- ls_eda_t3 %>% filter(decision != 'remove') %>% select(-18) %>%
+  mutate(stop_ret_t3= ifelse(sum_ret_t3 >= .2,.2,ifelse(sum_ret_t3 <= -.2,-.2,sum_ret_t3)),
+         result_t3 = ifelse(sum_ret_t3 >= 0, 'Lucro', 'Perda'))
+
+```
+
+# Juntando dados
+
+```{r}
+# unindo com a distancia euclidiana e ratio
+load('eucl_ratio.RData')
+ls_eda_t1 <- left_join(ls_eda_t1, eucl_ratio); ls_eda_t1 <- ls_eda_t1 %>% relocate(euclidian, ratio, .after = price_r)
+ls_eda_t2 <- left_join(ls_eda_t2, eucl_ratio); ls_eda_t2 <- ls_eda_t2 %>% relocate(euclidian, ratio, .after = price_r)
+ls_eda_t3 <- left_join(ls_eda_t3, eucl_ratio); ls_eda_t3 <- ls_eda_t3 %>% relocate(euclidian, ratio, .after = price_r)
+rm(eucl_ratio)
+
+```
+
+
+```{r}
+# carrega dados
+load("abt_combina.RData")
+
+# Combinação das empresas com relações econômicas
+econ_rel <- data.frame(left_side = c("BBDC3", "BBDC4", "ITUB3", "ITUB4", "LAME3", "LAME4", "PETR3", "PETR4",
+                                    "GGBR4", "GOAU4","ITSA4", "ITUB3", "ITSA4", "ITUB4", "BRAP4", "VALE3"),
+                       right_side = c("BBDC4", "BBDC3", "ITUB4", "ITUB3", "LAME4", "LAME3", "PETR4", "PETR3",
+                                    "GOAU4", "GGBR4", "ITUB3", "ITSA4", "ITUB4", "ITSA4", "VALE3", "BRAP4"),
+                       econ_rel = c(1))
+
+# classificando e analisando as combinações
+df_eda <- left_join(combina, econ_rel) # classifica se há relação econômica
+
+# join dos dados de combina com abt_alvo para os 2 tickers de cada linha
+df_eda <- left_join(left_join(df_eda, abt_alvo,  by = c("left_side" = "ticker")),
+                    abt_alvo,  by = c("right_side" = "ticker"))
+
+df_eda <- df_eda[,-c(4:8, 10, 14:21, 23, 27:29)] %>% mutate(across(where(is.factor), as.character)) %>%
+  mutate(
+    MCap_Classe = ifelse(MCap_Classe.x == MCap_Classe.y, MCap_Classe.x, "Diff"),
+    Setor = ifelse(Setor.x == Setor.y, Setor.x, "Diff"),
+    Subsetor = ifelse(Subsetor.x == Subsetor.y, Subsetor.x, "Diff"),
+    Segmento = ifelse(Segmento.x == Segmento.y, Segmento.x, "Diff")) %>% 
+  select(-c(4:11))
+
+df_eda[is.na(df_eda)] <- 0 # substitui NA por 0
+
+df_eda <- cbind(df_eda,
+               df_eda %>% summarise(across(c(MCap_Classe,Setor, Subsetor, Segmento), ~.x == "Diff")) %>% 
+                 mutate("Diffs" = rowSums(.)) %>% select(5))
+
+# Criando a abt
+ls_eda_t1 <- left_join(ls_eda_t1, df_eda)
+ls_eda_t2 <- left_join(ls_eda_t2, df_eda)
+ls_eda_t3 <- left_join(ls_eda_t3, df_eda)
+
+rm(econ_rel, abt_alvo, df_eda, combina, ls_eda_final)
+
+```
+
+```{r}
+# Classificação
+
+ls_eda_all <- full_join(ls_eda_t1, ls_eda_t2)
+ls_eda_all <- full_join(ls_eda_all, ls_eda_t3)
+
+ls_eda_all <- ls_eda_all %>% relocate(econ_rel, MCap_Classe, Setor, Subsetor, Segmento, Diffs, .after = ratio) %>% 
+  select(1:13, 23:24, 26:27, 37:38, 40:41, 51:52, 54:55)
+
+ls_eda_all$sum_ret <- rowSums(ls_eda_all[,c(14, 18, 22)], na.rm = TRUE)
+ls_eda_all$sum_ret_stop <- rowSums(ls_eda_all[,c(16, 20, 24)], na.rm = TRUE)
+
+ls_eda_all$class <- ifelse(ls_eda_all$sum_ret >= 0, 'Lucro', 'Perda')
+ls_eda_all$class_stop <- ifelse(ls_eda_all$sum_ret_stop >= 0, 'Lucro', 'Perda')
+
+```
+
+```{r}
+
+save(list  = ls(), file = "ls_eda_all.RData")
+
+sum(ls_eda_t1$sum_ret_t1)
+sum(ls_eda_t1$stop_ret_t1)
+
+sum(ls_eda_t2$sum_ret_t2)
+sum(ls_eda_t2$stop_ret_t2)
+
+sum(ls_eda_t3$sum_ret_t3)
+sum(ls_eda_t3$stop_ret_t3)
+
+
+
+```
+
+
+
+
+
+
+
+
+
+

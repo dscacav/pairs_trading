@@ -1,0 +1,3 @@
+"0","par(mfrow = c(2, 1))"
+"0",""
+"0","chart.TimeSeries(BVSP, main=""Cotação do IBOV"", grid.color	= ""white"", colorset = ""black"")"

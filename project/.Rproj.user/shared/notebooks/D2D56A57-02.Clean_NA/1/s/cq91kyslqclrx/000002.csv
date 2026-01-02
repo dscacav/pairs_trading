@@ -1,0 +1,14 @@
+"0","library(Amelia)"
+"2","Loading required package: Rcpp
+"
+"2","## 
+## Amelia II: Multiple Imputation
+## (Version 1.8.0, built: 2021-05-26)
+## Copyright (C) 2005-2021 James Honaker, Gary King and Matthew Blackwell
+## Refer to http://gking.harvard.edu/amelia/ for more information
+## 
+"
+"0","missmap(air_quality_tbl)"
+"2","Unknown or uninitialised column: `arguments`."
+"2","Unknown or uninitialised column: `arguments`."
+"2","Unknown or uninitialised column: `imputations`."

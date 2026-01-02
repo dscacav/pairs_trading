@@ -1,0 +1,6 @@
+"0","rtffile <- RTF(""rtf.doc"")  # this can be an .rtf or a .doc"
+"0","addParagraph(rtffile, ""5 Maiores e menores retornos diários do Índice\n"")"
+"0","addTable(rtffile, as_tibble(BVSP_ret) %>% "
+"0","  filter(min_rank(desc(daily.returns)) <= 5 | min_rank(daily.returns) <= 5) %>%"
+"0","  arrange(daily.returns) %>% transmute('Ranking_Retornos' = daily.returns * 100) %>% round(2))"
+"0","done(rtffile)"

@@ -1,0 +1,5 @@
+"0","iris %>%"
+"0","  select(-1:-4)%>%"
+"0","  mutate_all(as.factor) %>%"
+"0","  inspectdf::inspect_cat() %>% "
+"0","  inspectdf::show_plot()"

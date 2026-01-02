@@ -1,0 +1,2 @@
+"0","air_quality_tbl <- airquality %>% as_tibble()"
+"0","air_quality_tbl"
