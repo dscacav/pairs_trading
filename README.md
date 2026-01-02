@@ -121,40 +121,7 @@ R Codes and data.
 
 ---
 
-## 8) How to Reproduce (High-Level)
-
-1. **Download / assemble** historical prices and metadata  
-2. **Clean** missing data and align time series  
-3. **Apply filters** (history completeness + liquidity threshold)  
-4. **Engineer features** (returns, sector tags, “connected tickers”)  
-5. Run **EDA**:
-   - IBOV volatility context
-   - pre/post universe comparison
-   - correlation + sector/subsector relationship analysis
-
----
-
-## 9) Next Steps (Roadmap to Full Pairs Trading)
-
-If you want to evolve this into a full strategy implementation:
-
-- Pair selection:
-  - sector/subsector constraints
-  - statistical relationship tests (e.g., cointegration)
-- Signal generation:
-  - spread modeling and mean-reversion logic
-- Portfolio construction:
-  - sizing, leverage, neutrality constraints
-- Backtesting:
-  - transaction costs, borrow constraints, slippage
-  - evaluation metrics (Sharpe, drawdown, hit rate, turnover)
-- Risk management:
-  - stop rules, regime filters, volatility targeting
-
-
----
-
-## 10) Author
+## 8) Author
 
 **Cassiano Cavalcanti**  
 Capstone: *Pairs Trading — Reducing systemic market risk through quantitative Long & Short methods*
